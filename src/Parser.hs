@@ -1,0 +1,168 @@
+module Parser where
+
+import Text.Parsec
+import Text.Parsec.String (Parser)
+import Text.Parsec.Language 
+import qualified Text.Parsec.Expr as Expr
+
+import Control.Applicative hiding (many, (<|>))
+import Data.Functor.Identity
+import System.IO
+
+import Lexer 
+import Syntax
+
+
+--------------------------------------
+-- Parsing Programs from IO
+--------------------------------------
+
+-- parses contents of string or file,
+-- excluding leading whitespace
+contents :: Parser a -> Parser a
+contents p = whiteSpace *> p
+
+-- parses semicolon terminated expression
+topLevel :: Parser [DimlExpr]
+topLevel = many1 $ do
+   e <- expr <* reservedOp ";"
+   return e 
+ 
+-- parses expression without semicolon
+parseExpr :: String -> Either ParseError DimlExpr
+parseExpr str = parse (contents expr) "<stdin>" str
+
+-- parses program
+parseTopLevel :: String -> Either ParseError [DimlExpr]
+parseTopLevel str = parse (contents topLevel) "<stdin>" str
+
+--------------------------------------
+
+-- binary and prefix args are written differently, but do the same thing!
+binary :: Name -> (DimlExpr -> DimlExpr -> DimlExpr) -> Expr.Assoc -> (Expr.Operator String () Data.Functor.Identity.Identity DimlExpr)
+binary name label assoc = Expr.Infix (label <$ reservedOp name) assoc
+
+prefix :: Name -> (DimlExpr -> DimlExpr) -> (Expr.Operator String () Data.Functor.Identity.Identity DimlExpr)
+prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
+
+-- infix apply expr:
+-- parses whitespace in between function __ arg for an apply expr
+-- as long as whitespace not followed by another operator!
+--- ADD TYPE HERE:: Import Data.Functor.Identity
+apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
+apply = Expr.Infix space Expr.AssocLeft
+    where space = Apply 
+                <$ whiteSpace
+                <* notFollowedBy (choice . map reservedOp $ ops)
+
+-- wonder if you can make a type table?
+opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
+opTable = [ [ apply ]
+          , [ binary "*" Mul Expr.AssocLeft
+            , binary "/" Div Expr.AssocLeft]
+          , [ binary "+" Add Expr.AssocLeft
+            , binary "-" Sub Expr.AssocLeft ]
+          -- For right now, I am leaving out these because less coding for typechecker 
+          --    Type checking these require little to no additional effort other than typing
+          -- , [ binary "=" Equal Expr.AssocLeft ]    * This has no use in functional language?
+          -- , [ binary ";" Semi Expr.AssocLeft ]
+          , [ binary "<" Less Expr.AssocLeft
+            , binary ">" Great Expr.AssocLeft ]
+          , [ binary "==" Eq Expr.AssocLeft ]
+          --, binary "<=" LessEq Expr.AssocLeft
+          --, binary ">=" GreatEq Expr.AssocLeft
+          --]  
+        ]      
+
+expr :: Parser DimlExpr
+expr = Expr.buildExpressionParser opTable factor
+
+intExpr :: Parser DimlExpr
+intExpr = DInt <$> integer
+
+varExpr :: Parser DimlExpr
+varExpr = Var <$> identifier
+
+boolExpr :: Parser DimlExpr
+boolExpr =  DTrue <$ reserved "true"
+        <|> DFalse <$ reserved "false"
+
+-- this could be cleaned up...
+funExpr :: Parser DimlExpr
+funExpr = Fun <$> name <*> arg <*> argType <*> returnType <*> body
+    where name = reserved "fun" *> identifier 
+          arg = char '(' *> identifier  -- one argument functions
+          argType = reservedOp ":" *> typeExpr
+          returnType = char ')' *> reservedOp ":" *> typeExpr
+          body = reservedOp "=" *> expr
+
+lamExpr :: Parser DimlExpr
+lamExpr = Lam <$> arg <*> typ <*> body
+    where arg  = reservedOp "\\" *> identifier
+          typ  = reservedOp ":" *> typeExpr
+          body = reservedOp "->" *> expr 
+
+
+ifExpr :: Parser DimlExpr
+ifExpr = If <$> e1 <*> e2 <*> e3
+	where e1 = reserved "if" *> expr
+	      e2 = reserved "then" *> expr
+	      e3 = reserved "else" *> expr
+
+-- This is a pretty ugly work around for allows multiple line variable
+-- declarations in let statements... maybe ask professor ligatti if he wants just
+-- let (v1,v2) = (e1,e2) in ...
+--       or if
+-- let (v1) = (e1) 
+--     (v2) = (e2)
+-- in v1
+-- is better at all?
+letExpr :: Parser DimlExpr
+letExpr = do
+    reserved "let"
+    decls <- parens (try funExpr <|> declExpr) `sepBy1` whiteSpace
+    reserved "in"
+    body <- expr
+    return $ Let decls body
+
+-- this parser parses a let declaration
+-- ex: (x = 5) from 'let (x = 5) in x'
+declExpr :: Parser DimlExpr
+declExpr = do
+    var <- identifier <* reservedOp "="
+    varAsgnmt <- expr
+    return $ Decl var varAsgnmt
+
+-- Types: 
+-- int | bool | arrow type type
+-------------------------------
+boolType :: Parser Type
+boolType = TBool <$ reserved "Bool" 
+
+intType :: Parser Type
+intType = TInt <$ reserved "Int"
+
+-- right associative type 
+arrowType :: Parser Type
+arrowType = tTypeExpr `chainr1` arrow
+    where arrow = TArr <$ reservedOp "->" 
+
+-- base type exprs
+tTypeExpr :: Parser Type
+tTypeExpr = boolType 
+        <|> intType 
+        <|> parens arrowType
+
+typeExpr :: Parser Type
+typeExpr = try arrowType <|> tTypeExpr
+-------------------------------
+
+factor :: Parser DimlExpr
+factor =  try funExpr
+      <|> try lamExpr
+      <|> boolExpr
+      <|> ifExpr
+      <|> letExpr
+      <|> intExpr
+      <|> varExpr
+      <|> parens expr
