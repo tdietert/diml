@@ -1,8 +1,0 @@
-let (y = 3)
-    (fun fac(x:Int):Int = if (x < 1) then (1) else (x * fac (x-1)))
-in fac y
-
-let (fun fib(x:Int):Int = 
-    if (x < 2) then (1)
-    else fib (x-1) + fib (x - 2)
-in fib 5

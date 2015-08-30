@@ -11,22 +11,22 @@ import Control.Monad.Reader
 import System.Console.Haskeline
 
 -- parses, type checks, and evaluates file
-parseFile :: String -> IO ()
-parseFile filename = do
+evalProgram :: String -> IO ()
+evalProgram filename = do
     program <- readFile filename
     process program
 
 -- REMEMBER: escape backslash when writing lambdas in string (in ghci, arg to process)
 process :: String -> IO ()
 process line = do
-	-- parse it first!
+    -- parse it first!
     case parseExpr line of 
         Left err -> print err
         Right expr -> 
             -- type check it!
             case typeCheck [] expr of
-        	    Left err -> print err >> print expr
-        	    Right typ -> displayResult result typ
+                Left err -> print err >> print expr
+                Right typ -> displayResult result typ
             where result = eval [] expr
                   displayResult :: Value -> Type -> IO ()
                   displayResult e t = putStrLn outStr

@@ -28,6 +28,12 @@ topLevel = many1 $ do
    e <- expr <* reservedOp ";"
    return e 
  
+-- parses, type checks, and evaluates file
+parseFile :: String -> IO ()
+parseFile filename = do
+    program <- readFile filename
+    print $ parseExpr program
+
 -- parses expression without semicolon
 parseExpr :: String -> Either ParseError DimlExpr
 parseExpr str = parse (contents expr) "<stdin>" str
@@ -105,9 +111,9 @@ lamExpr = Lam <$> arg <*> typ <*> body
 
 ifExpr :: Parser DimlExpr
 ifExpr = If <$> e1 <*> e2 <*> e3
-	where e1 = reserved "if" *> expr
-	      e2 = reserved "then" *> expr
-	      e3 = reserved "else" *> expr
+    where e1 = reserved "if" *> expr
+          e2 = reserved "then" *> expr
+          e3 = reserved "else" *> expr
 
 -- This is a pretty ugly work around for allows multiple line variable
 -- declarations in let statements... maybe ask professor ligatti if he wants just
