@@ -33,17 +33,22 @@ data DimlExpr
 ```
 
 
-#####Ideas:
+#####To Do List:
 ---
-######Code-Gen to one of (x86, Java-bytecode, LLVM)
+Code-Gen to LLVM
+
 Type Inference (Hindley-Milner)
+
 Pattern Matching
 
 
-New Exprs:
-Case Expressions
-References (Arrays too?)
-Objects (sub-typing)
+**New Exprs:**
+
+>Case Expressions
+
+>References (Arrays too?)
+
+>Objects (sub-typing)
 
 
 #####Examples of valid programs:
