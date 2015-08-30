@@ -7,8 +7,11 @@ Currently, the lexing and parsing, type checking, and evalution functions are wr
 #####Build Instructions:
 
 > $ git clone https://github.com/tdietert/dimlCompiler.git
+
 > $ stack setup
+
 > $ stack build
+
 > $ stack exec dimlCompiler
 
 This will run the repl for the language and you can write expressions that will be evaluated very similar to the way ghci runs code... though currently, variable and function declarations do not stay in scope when using the repl. Right now the repl functions mostly as a single expression parser,typechecker, and simple evaluator.
@@ -80,11 +83,13 @@ in fib 6
 ```
 
 AST:
-
-> $ Let [ Fun "fib" "x" TInt TInt 
-        (If (Less (Var "x") (DInt 2)) (DInt 1) (Add (Apply (Var "fib") (Sub (Var "x") (DInt 1))) (Apply (Var "fib") (Sub (Var "x") (DInt 2)))))
+```
+Let [ Fun "fib" "x" TInt TInt 
+         (If (Less (Var "x") (DInt 2)) 
+             (DInt 1) 
+             (Add (Apply (Var "fib") (Sub (Var "x") (DInt 1))) (Apply (Var "fib") (Sub (Var "x") (DInt 2)))))
     ] (Apply (Var "fib") (DInt 5))
-
+```
 
 Evaluated:
 
