@@ -7,6 +7,7 @@ type Env = [(Name,Value)]
 
 data Value = VInt Integer
            | VBool Bool
+           | VTupl (Value,Value)
            | VClosure Env Name DimlExpr
            deriving (Eq,Show)
 
@@ -26,6 +27,11 @@ eval env expr = case expr of
                  if denom /= 0 then arithOpHelper div e1 e2
                  else error "divide by zero error!"
 
+    Less e1 e2 -> boolOpHelper (<) e1 e2
+    Great e1 e2 -> boolOpHelper (>) e1 e2
+    -- LesEq e1 e2 -> boolOpHelper (<=) e1 e2
+    -- GrtEq e1 e2 -> boolOpHelper (>=) e1 e2
+
     Eq e1 e2 -> if v1 == v2 then VBool True
                 else VBool False
         where v1 = eval env e1
@@ -35,15 +41,13 @@ eval env expr = case expr of
     Fun funName argName argType retType body -> 
         let fun = VClosure env argName body
         in VClosure ((funName,fun):env) argName body
-    Less e1 e2 -> boolOpHelper (<) e1 e2
-    Great e1 e2 -> boolOpHelper (>) e1 e2
 
     If e1 e2 e3 -> case eval env e1 of
         (VBool True) -> eval env e2
         (VBool False) -> eval env e3
 
     Let decls body -> eval (newVars ++ env) body 
-        where newVars = foldl evalDecl env decls
+        where newVars = foldl evalDecl env decls -- folds over list of declarations, evals each 
               evalDecl :: Env -> DimlExpr -> Env
               evalDecl env' (Decl var e) = (var, eval env' e):env'
               evalDecl env' fun@(Fun name _ _ _ _) = 
@@ -53,6 +57,8 @@ eval env expr = case expr of
     Apply fun@(Var fname) arg -> eval ((fname,fval):(paramName,argResult):env') funBody
         where argResult = eval env arg
               fval@(VClosure env' paramName funBody) = eval env fun
+
+    Tuple e1 e2 -> VTupl (eval env e1, eval env e2)
 
     e -> error $ "Your functions are not written well: "++show e++" slipped through..."
 

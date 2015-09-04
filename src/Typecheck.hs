@@ -54,6 +54,9 @@ check expr = case expr of
     Div e1 e2 -> tcNumExpr e1 >> tcNumExpr e2
     Less e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
     Great e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
+    -- LesEq e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
+    -- GrtEq e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
+
     Eq e1 e2 -> do 
         t1 <- check e1
         t2 <- check e2
@@ -80,6 +83,11 @@ check expr = case expr of
         where errMsg = "In if expr: " ++ show (If e1 e2 e3) 
 
     Decl var e1 -> check e1
+
+    Tuple e1 e2-> do
+        t1 <- check e1
+        t2 <- check e2
+        return $ TProd t1 t2
 
     Let (Decl v1 e1:rest) body ->
         check e1 >>= (\t -> unionContext [(v1,t)] . check $ Let rest body)

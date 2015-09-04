@@ -6,6 +6,7 @@ data Type
     = TBool 
     | TInt 
     | TArr Type Type
+    | TProd Type Type
     deriving (Eq, Ord, Show)
     
 data DimlExpr 
@@ -20,12 +21,15 @@ data DimlExpr
     | Eq DimlExpr DimlExpr
     | Lam Name Type DimlExpr
     | Fun Name Name Type Type DimlExpr  -- (name : T1) : T2 body-- Diml Expression Definition
-    | Less DimlExpr DimlExpr            -- LessEq DimlExpr DimlExpr
-    | Great DimlExpr DimlExpr           --  GreatEq DimlExpr DimlExpr
+    | Less DimlExpr DimlExpr            
+    | Great DimlExpr DimlExpr           
+    -- | LesEq DimlExpr DimlExpr
+    -- | GrtEq DimlExpr DimlExpr
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
     | Decl Name DimlExpr            -- helper expr for multi declaration letexprs
     | Let [DimlExpr] DimlExpr 
+    | Tuple DimlExpr DimlExpr
   deriving (Eq, Ord, Show)
 
 --Diml Patterns for pattern matching

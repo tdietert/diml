@@ -68,16 +68,11 @@ opTable = [ [ apply ]
             , binary "/" Div Expr.AssocLeft]
           , [ binary "+" Add Expr.AssocLeft
             , binary "-" Sub Expr.AssocLeft ]
-          -- For right now, I am leaving out these because less coding for typechecker 
-          --    Type checking these require little to no additional effort other than typing
-          -- , [ binary "=" Equal Expr.AssocLeft ]    * This has no use in functional language?
-          -- , [ binary ";" Semi Expr.AssocLeft ]
           , [ binary "<" Less Expr.AssocLeft
-            , binary ">" Great Expr.AssocLeft ]
-          , [ binary "==" Eq Expr.AssocLeft ]
-          --, binary "<=" LessEq Expr.AssocLeft
-          --, binary ">=" GreatEq Expr.AssocLeft
-          --]  
+            , binary ">" Great Expr.AssocLeft 
+            , binary "==" Eq Expr.AssocLeft ]
+            -- , binary "<=" LesEq Expr.AssocLeft
+            -- , binary ">=" GrtEq Expr.AssocLeft ]  
         ]      
 
 expr :: Parser DimlExpr
@@ -95,7 +90,7 @@ boolExpr =  DTrue <$ reserved "true"
 
 -- this could be cleaned up...
 funExpr :: Parser DimlExpr
-funExpr = Fun <$> name <*> arg <*> argType <*> returnType <*> body
+funExpr = Fun <$> try name <*> arg <*> argType <*> returnType <*> body
     where name = reserved "fun" *> identifier 
           arg = char '(' *> identifier  -- one argument functions
           argType = reservedOp ":" *> typeExpr
@@ -103,7 +98,7 @@ funExpr = Fun <$> name <*> arg <*> argType <*> returnType <*> body
           body = reservedOp "=" *> expr
 
 lamExpr :: Parser DimlExpr
-lamExpr = Lam <$> arg <*> typ <*> body
+lamExpr = Lam <$> try arg <*> typ <*> body
     where arg  = reservedOp "\\" *> identifier
           typ  = reservedOp ":" *> typeExpr
           body = reservedOp "->" *> expr 
@@ -115,18 +110,21 @@ ifExpr = If <$> e1 <*> e2 <*> e3
           e2 = reserved "then" *> expr
           e3 = reserved "else" *> expr
 
--- This is a pretty ugly work around for allows multiple line variable
--- declarations in let statements... maybe ask professor ligatti if he wants just
--- let (v1,v2) = (e1,e2) in ...
---       or if
--- let (v1) = (e1) 
---     (v2) = (e2)
--- in v1
--- is better at all?
+tupleExpr :: Parser DimlExpr
+tupleExpr = do 
+    try $ char '('
+    e1 <- expr
+    char ',' 
+    whiteSpace
+    e2 <- expr
+    char ')'
+    whiteSpace 
+    return $ Tuple e1 e2
+
 letExpr :: Parser DimlExpr
 letExpr = do
     reserved "let"
-    decls <- parens (try funExpr <|> declExpr) `sepBy1` whiteSpace
+    decls <- (funExpr <|> declExpr) `sepBy1` whiteSpace
     reserved "in"
     body <- expr
     return $ Let decls body
@@ -135,7 +133,7 @@ letExpr = do
 -- ex: (x = 5) from 'let (x = 5) in x'
 declExpr :: Parser DimlExpr
 declExpr = do
-    var <- identifier <* reservedOp "="
+    var <- try $ identifier <* reservedOp "="
     varAsgnmt <- expr
     return $ Decl var varAsgnmt
 
@@ -156,19 +154,21 @@ arrowType = tTypeExpr `chainr1` arrow
 -- base type exprs
 tTypeExpr :: Parser Type
 tTypeExpr = boolType 
+        <|> try (parens arrowType)
         <|> intType 
-        <|> parens arrowType
 
 typeExpr :: Parser Type
 typeExpr = try arrowType <|> tTypeExpr
 -------------------------------
 
 factor :: Parser DimlExpr
-factor =  try funExpr
-      <|> try lamExpr
+factor =  funExpr
+      <|> lamExpr
       <|> boolExpr
       <|> ifExpr
       <|> letExpr
       <|> intExpr
+      <|> declExpr
       <|> varExpr
+      <|> try tupleExpr
       <|> parens expr
