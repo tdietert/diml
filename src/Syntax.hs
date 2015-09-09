@@ -14,17 +14,10 @@ data DimlExpr
     | DFalse
     | DInt Integer
     | Var Name
-    | Add DimlExpr DimlExpr
-    | Sub DimlExpr DimlExpr 
-    | Mul DimlExpr DimlExpr
-    | Div DimlExpr DimlExpr
-    | Eq DimlExpr DimlExpr
+    | BinOp String DimlExpr DimlExpr
+    | Eq DimlExpr DimlExpr   
     | Lam Name Type DimlExpr
-    | Fun Name Name Type Type DimlExpr  -- (name : T1) : T2 body-- Diml Expression Definition
-    | Less DimlExpr DimlExpr            
-    | Great DimlExpr DimlExpr           
-    -- | LesEq DimlExpr DimlExpr
-    -- | GrtEq DimlExpr DimlExpr
+    | Fun Name Name Type Type DimlExpr  -- (name : T1) : T2 body-- Diml Expression Definition    
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
     | Decl Name DimlExpr            -- helper expr for multi declaration letexprs

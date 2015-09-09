@@ -47,15 +47,10 @@ check expr = case expr of
     DInt n -> return TInt
 
     Var x  -> lookupVar x 
-
-    Add e1 e2 -> tcNumExpr e1 >> tcNumExpr e2
-    Sub e1 e2 -> tcNumExpr e1 >> tcNumExpr e2
-    Mul e1 e2 -> tcNumExpr e1 >> tcNumExpr e2
-    Div e1 e2 -> tcNumExpr e1 >> tcNumExpr e2
-    Less e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
-    Great e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
-    -- LesEq e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
-    -- GrtEq e1 e2 -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
+    
+    BinOp s e1 e2 
+        | s `elem` ["==",">","<"] -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
+        | otherwise               -> tcNumExpr e1 >> tcNumExpr e2
 
     Eq e1 e2 -> do 
         t1 <- check e1
@@ -84,7 +79,7 @@ check expr = case expr of
 
     Decl var e1 -> check e1
 
-    Tuple e1 e2-> do
+    Tuple e1 e2 -> do
         t1 <- check e1
         t2 <- check e2
         return $ TProd t1 t2

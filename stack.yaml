@@ -1,5 +1,7 @@
 flags: {}
 packages:
 - '.'
-extra-deps: []
+extra-deps: 
+- llvm-general-pure-3.4.5.4
+- llvm-general-3.4.5.4
 resolver: lts-3.2

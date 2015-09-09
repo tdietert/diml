@@ -45,8 +45,8 @@ parseTopLevel str = parse (contents topLevel) "<stdin>" str
 --------------------------------------
 
 -- binary and prefix args are written differently, but do the same thing!
-binary :: Name -> (DimlExpr -> DimlExpr -> DimlExpr) -> Expr.Assoc -> (Expr.Operator String () Data.Functor.Identity.Identity DimlExpr)
-binary name label assoc = Expr.Infix (label <$ reservedOp name) assoc
+binary :: Name -> Expr.Assoc -> (Expr.Operator String () Data.Functor.Identity.Identity DimlExpr)
+binary name = Expr.Infix (reservedOp name >> return (BinOp name))
 
 prefix :: Name -> (DimlExpr -> DimlExpr) -> (Expr.Operator String () Data.Functor.Identity.Identity DimlExpr)
 prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
@@ -54,7 +54,6 @@ prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
 -- infix apply expr:
 -- parses whitespace in between function __ arg for an apply expr
 -- as long as whitespace not followed by another operator!
---- ADD TYPE HERE:: Import Data.Functor.Identity
 apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
 apply = Expr.Infix space Expr.AssocLeft
     where space = Apply 
@@ -64,15 +63,13 @@ apply = Expr.Infix space Expr.AssocLeft
 -- wonder if you can make a type table?
 opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
 opTable = [ [ apply ]
-          , [ binary "*" Mul Expr.AssocLeft
-            , binary "/" Div Expr.AssocLeft]
-          , [ binary "+" Add Expr.AssocLeft
-            , binary "-" Sub Expr.AssocLeft ]
-          , [ binary "<" Less Expr.AssocLeft
-            , binary ">" Great Expr.AssocLeft 
-            , binary "==" Eq Expr.AssocLeft ]
-            -- , binary "<=" LesEq Expr.AssocLeft
-            -- , binary ">=" GrtEq Expr.AssocLeft ]  
+          , [ binary "*" Expr.AssocLeft
+            , binary "/" Expr.AssocLeft]
+          , [ binary "+" Expr.AssocLeft
+            , binary "-" Expr.AssocLeft ]
+          , [ binary "<" Expr.AssocLeft
+            , binary ">" Expr.AssocLeft 
+            , binary "==" Expr.AssocLeft ] 
         ]      
 
 expr :: Parser DimlExpr
@@ -110,30 +107,29 @@ ifExpr = If <$> e1 <*> e2 <*> e3
           e2 = reserved "then" *> expr
           e3 = reserved "else" *> expr
 
+-- explicitly a pair: (x,y)
 tupleExpr :: Parser DimlExpr
 tupleExpr = do 
-    try $ char '('
+    char '(' >> whiteSpace
     e1 <- expr
-    char ',' 
-    whiteSpace
+    char ',' >> whiteSpace
     e2 <- expr
-    char ')'
-    whiteSpace 
+    char ')' >> whiteSpace 
     return $ Tuple e1 e2
 
 letExpr :: Parser DimlExpr
 letExpr = do
     reserved "let"
-    decls <- (funExpr <|> declExpr) `sepBy1` whiteSpace
+    decls <- (funExpr <|> declExpr <|> parens funExpr <|> parens declExpr) `sepBy1` whiteSpace
     reserved "in"
     body <- expr
-    return $ Let decls body
+    return $ Let decls body    
 
 -- this parser parses a let declaration
 -- ex: (x = 5) from 'let (x = 5) in x'
 declExpr :: Parser DimlExpr
 declExpr = do
-    var <- try $ identifier <* reservedOp "="
+    var <- (try $ identifier <* reservedOp "=")
     varAsgnmt <- expr
     return $ Decl var varAsgnmt
 
