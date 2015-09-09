@@ -22,28 +22,40 @@ evalProgram filename = do
     program <- readFile filename
     evalInHaskell program
 
+displayResult :: Value -> Type -> IO ()
+displayResult e t = putStrLn outStr
+    where outStr = "it = " ++ show e ++ " : " ++ show t
+
 -- REMEMBER: escape backslash when writing lambdas
 -- in string (in ghci, arg to process)
 evalInHaskell :: String -> IO ()
 evalInHaskell line = do
-    -- parse it first!
     case parseExpr line of 
         Left err -> print err
         Right expr -> 
-            -- type check it!
             case typeCheck [] expr of
                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
                 Right typ -> displayResult result typ
             where result = eval [] expr
-                  displayResult :: Value -> Type -> IO ()
-                  displayResult e t = putStrLn outStr
-                      where outStr = "it = " ++ show e ++ " : " ++ show t
+
 
 procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
 procLlvmModule base source = do
     case parseExpr source of
         Left err -> print err >> return Nothing
-        Right ex -> print ex >> codegen base ex >>= (\x -> return $ Just x)
+        Right ex -> print ex >> Just <$> codegen base ex
+        -- Note:
+        --    need to get type checking to work with context
+        --    from AST.Module, right now the typing context is
+        --    simply line by line, but we need the repl to carry
+        --    a context around with it, as AST.Module is already
+        
+            --case typeCheck [] ex of
+            --    Left err -> print err >> return Nothing
+            --    Right typ -> do
+            --        print ex                        -- prints resulting expr
+            --        displayResult (eval [] ex) typ  -- prints interpreted expr
+            --        Just <$> codegen base ex        -- returns llvm module AST
 
 processfile :: String -> IO (Maybe AST.Module)
 processfile fname = readFile fname >>= procLlvmModule initModule

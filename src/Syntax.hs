@@ -14,7 +14,7 @@ data DimlExpr
     | DFalse
     | DInt Integer
     | Var Name
-    | BinOp String DimlExpr DimlExpr
+    | BinOp Name DimlExpr DimlExpr
     | Eq DimlExpr DimlExpr   
     | Lam Name Type DimlExpr
     | Fun Name Name Type Type DimlExpr  -- (name : T1) : T2 body-- Diml Expression Definition    

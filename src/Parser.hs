@@ -54,16 +54,16 @@ prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
 -- infix apply expr:
 -- parses whitespace in between function __ arg for an apply expr
 -- as long as whitespace not followed by another operator!
-apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
-apply = Expr.Infix space Expr.AssocLeft
-    where space = Apply 
-                <$ whiteSpace
-                <* notFollowedBy (choice . map reservedOp $ ops)
+--apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
+--apply = Expr.Infix space Expr.AssocLeft
+--    where space = Apply 
+--                <$ whiteSpace
+--                <* notFollowedBy (choice . map reservedOp $ ops)
 
 -- wonder if you can make a type table?
 opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
-opTable = [ [ apply ]
-          , [ binary "*" Expr.AssocLeft
+opTable = [ -- [ apply ]
+            [ binary "*" Expr.AssocLeft
             , binary "/" Expr.AssocLeft]
           , [ binary "+" Expr.AssocLeft
             , binary "-" Expr.AssocLeft ]
@@ -100,6 +100,8 @@ lamExpr = Lam <$> try arg <*> typ <*> body
           typ  = reservedOp ":" *> typeExpr
           body = reservedOp "->" *> expr 
 
+applyExpr :: Parser DimlExpr
+applyExpr = Apply <$> varExpr <*> parens expr
 
 ifExpr :: Parser DimlExpr
 ifExpr = If <$> e1 <*> e2 <*> e3
@@ -160,6 +162,7 @@ typeExpr = try arrowType <|> tTypeExpr
 factor :: Parser DimlExpr
 factor =  funExpr
       <|> lamExpr
+      <|> try applyExpr
       <|> boolExpr
       <|> ifExpr
       <|> letExpr
