@@ -26,13 +26,24 @@ codegenTop :: Syn.DimlExpr -> LLVM ()
 codegenTop (Syn.Fun name arg _ _ body) = do
     define double name fnargs bls
     where fnargs = toSig [arg]
-          bls = createBlocks $ execCodegen $ do
+          bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
               setBlock entry
               forM [arg] $ \a -> do
                   var <- alloca double
                   store var (local (AST.Name a))
                   assign a var
+              cgen body >>= ret
+codegenTop (Syn.Let decls body) = do
+    define double "main" [] bls  
+    where bls = createBlocks . execCodegen $ do
+              entry <- addBlock entryBlockName
+              setBlock entry 
+              forM decls $ \(Syn.Decl name e) -> do
+                  var <- alloca double
+                  asgn <- cgen e
+                  store var asgn
+                  assign name var
               cgen body >>= ret
 --codegenTop (Syn.Extern name args) = do
 --  external double name fnargs

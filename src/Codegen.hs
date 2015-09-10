@@ -65,6 +65,9 @@ external retty label argtys = addDefn $
 double :: Type
 double = FloatingPointType 64 IEEE
 
+void :: Type
+void = VoidType
+
 -------------------------------------------------------------------------------
 -- Names
 -------------------------------------------------------------------------------
@@ -260,9 +263,11 @@ toArgs = map (\x -> (x, []))
 call :: Operand -> [Operand] -> Codegen Operand
 call fn args = instr $ Call False CC.C [] (Right fn) (toArgs args) [] []
 
+-- allocates memory for a variable
 alloca :: Type -> Codegen Operand
 alloca ty = instr $ Alloca ty Nothing 0 []
 
+-- stores a value in a variable mem loc
 store :: Operand -> Operand -> Codegen Operand
 store ptr val = instr $ Store False ptr val Nothing 0 []
 

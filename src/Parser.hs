@@ -122,7 +122,7 @@ tupleExpr = do
 letExpr :: Parser DimlExpr
 letExpr = do
     reserved "let"
-    decls <- (funExpr <|> declExpr <|> parens funExpr <|> parens declExpr) `sepBy1` whiteSpace
+    decls <- (funExpr <|> declExpr) `sepBy1` whiteSpace
     reserved "in"
     body <- expr
     return $ Let decls body    
@@ -131,7 +131,7 @@ letExpr = do
 -- ex: (x = 5) from 'let (x = 5) in x'
 declExpr :: Parser DimlExpr
 declExpr = do
-    var <- (try $ identifier <* reservedOp "=")
+    var <- try $ identifier <* reservedOp "="
     varAsgnmt <- expr
     return $ Decl var varAsgnmt
 
