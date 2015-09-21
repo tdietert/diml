@@ -8,24 +8,34 @@ import Data.Maybe
 
 import Control.Monad.State
 import Control.Applicative
+import qualified Data.Map as Map
 
 type SymbolTable = [(Name,IExpr)]
+type Arg = String
+type Names = Map.Map String Int
 
 data EnvState  
   = EnvState {
     symtab :: SymbolTable
-  , names :: Int
+  , names :: Names
   } deriving (Show)
 
 -- for newtype, field type isomorphic to type of Env a
 newtype Env a = Env { runEnv :: State EnvState a }
     deriving (Functor, Applicative, Monad, MonadState EnvState)
 
-nextName :: Env Int
-nextName = do
-    i <- gets names
-    modify $ \s -> s { names = 1 + i }
-    return $ i + 1
+uniqueName :: String -> Names -> (String, Names)
+uniqueName nm ns =
+  case Map.lookup nm ns of  
+    Nothing -> (nm,  Map.insert nm 1 ns)  -- if name exists, add name to Names
+    Just ix -> (nm ++ show ix, Map.insert nm (ix+1) ns) -- else add name "name#vars"
+
+lookupVar :: Name -> Env IExpr
+lookupVar var = do
+    env <- gets symtab
+    case lookup var env of
+        Just x -> return x
+        Nothing -> error (show var ++ " not in symbol table: " ++ show env)
 
 -- defines another IR AST with lambda Lifts
 data IExpr = IInt Integer
@@ -39,7 +49,7 @@ data IExpr = IInt Integer
            | IDec Name IExpr
            | ILet [IExpr] IExpr
            | ITup IExpr IExpr
-           | IClosure Name Name SymbolTable IExpr -- functions and lambdas
+           | IClosure Name Arg [Arg] IExpr -- functions and lambdas
            | ITopLevel IExpr IExpr
            | Empty
            deriving (Eq,Show)
@@ -49,7 +59,11 @@ lambdaLift env expr = case expr of
     DTrue -> return $ IBool True
     DFalse -> return $ IBool False
     DInt n -> return $ IInt n
-    Var x -> return $ IVar x
+    Var x -> do
+        nms <- gets names
+        let (newName,supply) = uniqueName x nms
+        modify $ \s ->  s { names = supply }
+        return $ IVar newName
 
     Tuple e1 e2 -> do
         e1' <- lambdaLift env e1
@@ -97,20 +111,24 @@ lambdaLift env expr = case expr of
               collect decs fun@(Fun name _ _ _ _) = decs ++ [lambdaLift (last decs) fun]          
 
     Lam arg typ body -> do
-        num <- nextName
-        env' <- gets symtab
+        nms <- gets names
+        let (lamName, supply) = uniqueName "lambda" nms
+        modify $ \s -> s { names = supply }
+        ctxt <- gets symtab
         lBody <- lambdaLift env body
-        let lName = "lambda" ++ show num
-            lClos = IClosure lName arg env' lBody
-        modify $ \s -> s { symtab = (lName,lClos):env' }
-        return $ IVar lName
+        let lCtxt = map (\(name,val) -> name) ctxt
+            lClos = IClosure lamName arg lCtxt lBody
+        return lClos
 
-    Fun fName argName argType retType body -> do
+    Fun fName arg argType retType body -> do
         fBody <- lambdaLift env body
-        fEnv <- gets symtab
-        let fClos = IClosure fName argName fEnv fBody
-        modify $ \s -> s { symtab = (fName,fClos):fEnv }
-        return $ IDec fName (IVar fName) -- return declaration f = f
+        ctxt <- gets symtab
+        nms <- gets names
+        let (newName, supply) = uniqueName fName nms
+            fCtxt = map (\(name,val) -> name) ctxt
+            fClos = IClosure fName arg fCtxt fBody
+        modify $ \s -> s { symtab = (fName,fClos):ctxt, names = supply }
+        return $ IDec newName (IVar newName) -- return declaration f = f
 
     Apply fun@(Var fname) arg -> do
         lArg <- lambdaLift env arg
@@ -120,7 +138,7 @@ lambdaLift env expr = case expr of
 
 
 emptyLLTree :: EnvState
-emptyLLTree = EnvState [] 0
+emptyLLTree = EnvState [] Map.empty
 
 runLLTree :: Env IExpr -> (IExpr, EnvState)
 runLLTree m =  runState (runEnv m) emptyLLTree
