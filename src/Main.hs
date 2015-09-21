@@ -2,7 +2,7 @@ module Main where
 
 import Parser
 import Syntax
-import Eval
+import IR
 import Typecheck
 import Codegen
 import EmitLLVM
@@ -20,23 +20,28 @@ import qualified LLVM.General.AST as AST
 evalProgram :: String -> IO ()
 evalProgram filename = do
     program <- readFile filename
-    evalInHaskell program
+    simpleTypecheck program
 
-displayResult :: Value -> Type -> IO ()
-displayResult e t = putStrLn outStr
-    where outStr = "it = " ++ show e ++ " : " ++ show t
+simpleLambdaLift :: String -> IO ()
+simpleLambdaLift line = do
+    case parseExpr line of 
+        Left err -> print err
+        Right expr ->
+            case typeCheck [] expr of
+                Left err -> print err >> putStrLn "expr with failure:" >> print expr
+                Right typ -> print $ buildIRTree expr
+                  
 
 -- REMEMBER: escape backslash when writing lambdas
 -- in string (in ghci, arg to process)
-evalInHaskell :: String -> IO ()
-evalInHaskell line = do
+simpleTypecheck :: String -> IO ()
+simpleTypecheck line = do
     case parseExpr line of 
         Left err -> print err
         Right expr -> 
             case typeCheck [] expr of
                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
-                Right typ -> displayResult result typ
-            where result = eval [] expr
+                Right typ -> print expr
 
 
 procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
@@ -82,4 +87,6 @@ main = do
     args <- getArgs
     case args of 
         []      -> repl
-        [fname] -> processfile fname >> return ()
+        [fname] -> do
+            file <- readFile fname
+            simpleLambdaLift file-- processfile fname >> return ()

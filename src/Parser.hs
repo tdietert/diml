@@ -122,7 +122,7 @@ tupleExpr = do
 letExpr :: Parser DimlExpr
 letExpr = do
     reserved "let"
-    decls <- (funExpr <|> declExpr) `sepBy1` whiteSpace
+    decls <- commaSep $ funExpr <|> declExpr
     reserved "in"
     body <- expr
     return $ Let decls body    

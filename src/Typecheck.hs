@@ -86,9 +86,9 @@ check expr = case expr of
 
     Let (Decl v1 e1:rest) body ->
         check e1 >>= (\t -> unionContext [(v1,t)] . check $ Let rest body)
-    Let (funExpr:rest) body ->
-        let (Fun name _ _ _ _) = funExpr in 
-        check funExpr >>= (\t -> unionContext [(name,t)] . check $ Let rest body)
+    Let (fun@(Fun name _ argty retty _):rest) body -> do
+        funType <- check fun
+        unionContext [(name,funType)] (check (Let rest body))
     Let [] body -> check body
 
     Apply e1 e2 -> do

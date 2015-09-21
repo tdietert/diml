@@ -20,6 +20,7 @@ import qualified LLVM.General.AST.Constant as Const
 import qualified LLVM.General.AST.Attribute as A
 import qualified LLVM.General.AST.CallingConvention as CC
 import qualified LLVM.General.AST.FloatingPointPredicate as FP
+import qualified LLVM.General.AST.Type as T
 
 -------------------------------------------------------------------------------
 -- Module Level
@@ -59,14 +60,16 @@ external retty label argtys = addDefn $
 
 ---------------------------------------------------------------------------------
 -- Types
--------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
 
 -- IEEE 754 double
 double :: Type
 double = FloatingPointType 64 IEEE
 
-void :: Type
-void = VoidType
+-- TO DO:
+-------------
+-- tuple :: Type
+-- tuple = FloatingPointType 64 PairOfFloats
 
 -------------------------------------------------------------------------------
 -- Names
@@ -76,9 +79,9 @@ type Names = Map.Map String Int
 
 uniqueName :: String -> Names -> (String, Names)
 uniqueName nm ns =
-  case Map.lookup nm ns of
-    Nothing -> (nm,  Map.insert nm 1 ns)
-    Just ix -> (nm ++ show ix, Map.insert nm (ix+1) ns)
+  case Map.lookup nm ns of  
+    Nothing -> (nm,  Map.insert nm 1 ns)  -- if name exists, add name to Names
+    Just ix -> (nm ++ show ix, Map.insert nm (ix+1) ns) -- else add name "name#vars"
 
 instance IsString Name where
   fromString = Name . fromString
@@ -145,7 +148,6 @@ fresh = do
     i <- gets count
     modify $ \s -> s { count = 1 + i }
     return $ i + 1
-
 
 instr :: Instruction -> Codegen (Operand)
 instr ins = do
@@ -283,3 +285,6 @@ cbr cond tr fl = terminator $ Do $ CondBr cond tr fl []
 
 ret :: Operand -> Codegen (Named Terminator)
 ret val = terminator $ Do $ Ret (Just val) []
+
+phi :: Type -> [(Operand, Name)] -> Codegen Operand
+phi typ brs = instr $ Phi typ brs [] 

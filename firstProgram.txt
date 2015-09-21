@@ -1,4 +1,4 @@
-let (fun fib(x:Int):Int = 
-    if (x < 2) then (1)
-    else fib (x-1) + fib (x - 2))
-in fib 6
+let fun fib(x:Int):Int = 
+    if (x < 2) then 1
+    else fib(x-1) + fib(x - 2) 
+in fib(7)
