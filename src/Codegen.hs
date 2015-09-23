@@ -92,7 +92,6 @@ instance IsString Name where
 
 type SymbolTable = [(String, Operand)]
 
---  
 data CodegenState
   = CodegenState {
     currentBlock :: Name                     -- Name of the active block to append to
@@ -221,17 +220,23 @@ getvar var = do
     syms <- gets symtab
     case lookup var syms of
         Just x  -> return x
-        Nothing -> error $ "Local variable not in scope: " ++ show var
+        -- if var is not found as local var, it is a function
+        Nothing -> getfunc var
+
+getfunc :: String -> Codegen Operand
+getfunc fName = return (externf $ AST.Name fName)  
 
 -------------------------------------------------------------------------------
 
+---------------
 -- References
+---------------
+
+-- for local vars (lexically scoped)
 local ::  Name -> Operand
 local = LocalReference double
 
-global ::  Name -> Const.Constant
-global = Const.GlobalReference double
-
+-- for top level functions
 externf :: Name -> Operand
 externf = ConstantOperand . Const.GlobalReference double
 

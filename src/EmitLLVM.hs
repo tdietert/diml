@@ -18,14 +18,16 @@ import Control.Monad.State
 import qualified Data.Map as Map
 
 import Codegen
-import qualified Syntax as Syn
+import IR
 
 toSig :: [String] -> [(AST.Type, AST.Name)]
 toSig = map (\x -> (double, AST.Name x))
 
 -- top level code gen
-codegenTop :: Syn.DimlExpr -> LLVM ()
-codegenTop (Syn.Let decls body) = do
+codegenTop :: IR.IExpr -> LLVM ()
+codegenTop (IR.ITopLevel e1 e2) = codegenTop e1 >> codegenTop e2
+    
+codegenTop (IR.ILet decls body) = do
     define double "main" [] bls
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
@@ -33,16 +35,17 @@ codegenTop (Syn.Let decls body) = do
               forM decls (\decl -> cgen decl)
               cgen body >>= ret
 
-codegenTop (Syn.Fun name arg _ _ body) = do
+codegenTop (IR.IClosure name arg env body) = do
     define double name fnargs bls
-    where fnargs = toSig [arg]
+    where fnargs = toSig (arg:env) -- creates arg list of arg : [closure env vars]
           bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
               setBlock entry
-              forM [arg] $ \a -> do    -- supports multiple args, remove for loop for 1 arg
-                  var <- alloca double
-                  assign a var
-                  store var (local (AST.Name a))
+              var <- alloca double               --
+              assign arg var                     -- only allocate mem for arg, env vars should have assignments
+              store var (local (AST.Name arg))   --
+              sytb <- gets Codegen.symtab
+              modify $ \s -> s { Codegen.symtab = (name, externf $ AST.Name name):sytb }
               cgen body >>= ret
 
 
@@ -71,23 +74,23 @@ binops = Map.fromList [
           ]
 
 -- code gen for code within blocks, creates sequence of instructions
-cgen :: Syn.DimlExpr -> Codegen AST.Operand
-cgen (Syn.DTrue) = return . cons $ Const.Float (F.Double 1)
-cgen (Syn.DFalse) = return . cons $ Const.Float (F.Double 0)
-cgen (Syn.DInt n) = return . cons $ Const.Float (F.Double $ fromIntegral n)
-cgen (Syn.Var x) = getvar x >>= load
--- cgen (Syn.Tuple x y) = 
-cgen (Syn.Apply (Syn.Var fn) arg) = do 
-    larg <- cgen arg
-    call (externf (AST.Name fn)) [larg]
-cgen (Syn.Eq e1 e2) = do 
+cgen :: IR.IExpr -> Codegen AST.Operand
+cgen (IR.ITrue) = return . cons $ Const.Float (F.Double 1)
+cgen (IR.IFalse) = return . cons $ Const.Float (F.Double 0)
+cgen (IR.IInt n) = return . cons $ Const.Float (F.Double $ fromIntegral n)
+cgen (IR.IVar x) = getvar x >>= load
+-- cgen (IR.Tuple x y) = 
+cgen (IR.IApp fun args) = do 
+    largs <- cgen args
+    call (externf (AST.Name fun)) [largs]
+cgen (IR.IEq e1 e2) = do 
     a <- cgen e1
     b <- cgen e2
     fcmp FP.OEQ a b 
-cgen (Syn.If cond tru fals) = do
+cgen (IR.IIf cond tru fals) = do
     -- construct three new blocks 
     ifthen <- addBlock "if.then"
-    ifelse <- addBlock "if.else"
+    ifelse <- addBlock "if.else" 
     ifexit <- addBlock "if.exit"
     -- eval condition
     condval <- cgen cond
@@ -107,23 +110,23 @@ cgen (Syn.If cond tru fals) = do
     ifelse <- getBlock 
     setBlock ifexit
     phi double [(trueBrVal, ifthen), (falsBrVal, ifelse)]
-cgen (Syn.BinOp op a b) = do
+cgen (IR.IBinOp op a b) = do
     case Map.lookup op binops of
       Just f  -> do
           ca <- cgen a
           cb <- cgen b
           f ca cb
       Nothing -> error "No such operator"
-cgen (Syn.Decl name e) = do
+cgen (IR.IDec name e) = do
     var <- alloca double
     asgn <- cgen e
     assign name var
     store var asgn
-cgen (Syn.Let decls body) = do
+cgen (IR.ILet decls body) = do
     mapM cgen decls
     cgen body
 
-cgen _ = error $ "Failed on lookup "
+cgen e = error $ "Failed on lookup " ++ show e
 
 -------------------------------------------------------------------------------
 -- Compilation
@@ -133,12 +136,12 @@ liftError :: ExceptT String IO a -> IO a
 liftError = runExceptT >=> either fail return
 
 -- can be modified to take list of Exprs
-codegen :: AST.Module -> Syn.DimlExpr -> IO AST.Module
+codegen :: AST.Module -> IR.IExpr -> IO AST.Module
 codegen mod fn = withContext $ \context ->
-  liftError $ withModuleFromAST context newast $ \m -> do
-    llstr <- moduleLLVMAssembly m
-    putStrLn llstr
-    return newast
+    liftError $ withModuleFromAST context newast $ \m -> do
+        llstr <- moduleLLVMAssembly m
+        putStrLn llstr
+        return newast
   where
-    modn    = codegenTop fn
-    newast  = runLLVM mod modn
+    modn = codegenTop fn 
+    newast = runLLVM mod modn

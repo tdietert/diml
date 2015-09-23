@@ -43,12 +43,16 @@ simpleTypecheck line = do
                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
                 Right typ -> print expr
 
-
+-- add type checking
 procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
 procLlvmModule base source = do
     case parseExpr source of
         Left err -> print err >> return Nothing
-        Right ex -> print ex >> Just <$> codegen base ex
+        Right dimlExpr -> let irExpr = buildIRTree dimlExpr
+                    in do 
+                      print dimlExpr 
+                      print irExpr 
+                      Just <$> codegen base irExpr
         -- Note:
         --    need to get type checking to work with context
         --    from AST.Module, right now the typing context is
@@ -87,6 +91,4 @@ main = do
     args <- getArgs
     case args of 
         []      -> repl
-        [fname] -> do
-            file <- readFile fname
-            simpleLambdaLift file-- processfile fname >> return ()
+        [fname] -> processfile fname >> return ()

@@ -51,7 +51,7 @@ binary name = Expr.Infix (reservedOp name >> return (BinOp name))
 prefix :: Name -> (DimlExpr -> DimlExpr) -> (Expr.Operator String () Data.Functor.Identity.Identity DimlExpr)
 prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
 
--- infix apply expr:
+-- infix apply expr (Add to op table as [apply] for curried look):
 -- parses whitespace in between function __ arg for an apply expr
 -- as long as whitespace not followed by another operator!
 --apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
@@ -62,8 +62,7 @@ prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
 
 -- wonder if you can make a type table?
 opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
-opTable = [ -- [ apply ]
-            [ binary "*" Expr.AssocLeft
+opTable = [ [ binary "*" Expr.AssocLeft
             , binary "/" Expr.AssocLeft]
           , [ binary "+" Expr.AssocLeft
             , binary "-" Expr.AssocLeft ]

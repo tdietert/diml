@@ -18,51 +18,88 @@ data EnvState
   = EnvState {
     symtab :: SymbolTable
   , names :: Names
+  , nameMap :: [(Name,Name)]
   } deriving (Show)
 
 -- for newtype, field type isomorphic to type of Env a
 newtype Env a = Env { runEnv :: State EnvState a }
     deriving (Functor, Applicative, Monad, MonadState EnvState)
 
-uniqueName :: String -> Names -> (String, Names)
-uniqueName nm ns =
-  case Map.lookup nm ns of  
-    Nothing -> (nm,  Map.insert nm 1 ns)  -- if name exists, add name to Names
-    Just ix -> (nm ++ show ix, Map.insert nm (ix+1) ns) -- else add name "name#vars"
 
-lookupVar :: Name -> Env IExpr
-lookupVar var = do
-    env <- gets symtab
-    case lookup var env of
+------------
+-- Utility
+------------
+uniqueName :: String -> Env String
+uniqueName name = do 
+  (EnvState _ nms nmMap) <- get
+  case Map.lookup name nms of  
+    Nothing -> do
+        modify $ \s -> s { names = Map.insert name 1 nms }  -- if name exists, add name to Names
+        return name
+    Just ix -> do
+        modify $ \s -> s { names = Map.insert name (ix+1) nms } -- else add name "name#vars"
+        return $ name ++ show ix
+
+lookupVarName :: Name -> Env Name
+lookupVarName var = do
+    nmMap <- gets nameMap
+    case lookup var nmMap of
         Just x -> return x
-        Nothing -> error (show var ++ " not in symbol table: " ++ show env)
+        Nothing -> error (show var ++ " not in symbol table: " ++ show nmMap)
+------------
 
--- defines another IR AST with lambda Lifts
+--------------------------------------------------
+-- Lambda Lifting (probably easier than I make it)
+--     defines another IR AST with lambda Lifts
+--------------------------------------------------
 data IExpr = IInt Integer
-           | IBool Bool
+           | ITrue
+           | IFalse
            | ITupl (IExpr,IExpr)
            | IVar Name
            | IBinOp Name IExpr IExpr
            | IEq IExpr IExpr
            | IIf IExpr IExpr IExpr
-           | IApp IExpr IExpr
+           | IApp Name IExpr
            | IDec Name IExpr
            | ILet [IExpr] IExpr
            | ITup IExpr IExpr
            | IClosure Name Arg [Arg] IExpr -- functions and lambdas
-           | ITopLevel IExpr IExpr
+           | ITopLevel IExpr IExpr     -- top level closures followed by first let expr
            | Empty
            deriving (Eq,Show)
 
+------------------------------------------
+-- IR AST : Final Tree Construction
+------------------------------------------
+emptyLLTree :: EnvState
+emptyLLTree = EnvState [] Map.empty []
+
+runLLTree :: Env IExpr -> (IExpr, EnvState)
+runLLTree m =  runState (runEnv m) emptyLLTree
+
+getClosures :: EnvState -> [IExpr]
+getClosures es = foldr collectClosures [] env
+    where env = symtab es 
+          collectClosures (name,f@(IClosure _ _ _ _)) clsrs = f:clsrs
+          collectClosures _ clsrs = clsrs 
+
+buildIRTree :: DimlExpr -> IExpr
+buildIRTree dimlExpr =  
+    case getClosures closures of 
+        (c:cs) -> foldl ITopLevel c $ cs++[prgm]
+        []     -> prgm
+    where (prgm, closures) = runLLTree $ lambdaLift (return Empty) dimlExpr
+
+-------------------------------------------
+
 lambdaLift :: Env IExpr -> DimlExpr -> Env IExpr
 lambdaLift env expr = case expr of
-    DTrue -> return $ IBool True
-    DFalse -> return $ IBool False
+    DTrue -> return $ ITrue
+    DFalse -> return $ IFalse
     DInt n -> return $ IInt n
     Var x -> do
-        nms <- gets names
-        let (newName,supply) = uniqueName x nms
-        modify $ \s ->  s { names = supply }
+        newName <- lookupVarName x
         return $ IVar newName
 
     Tuple e1 e2 -> do
@@ -88,73 +125,61 @@ lambdaLift env expr = case expr of
 
     Decl name e -> do
         e' <- lambdaLift env e
-        case e' of 
-          IDec _ decVal -> return $ IDec name decVal
+        nmMap <- gets nameMap
+        ctxt <- gets symtab 
+        case e' of
+          (IVar x) -> do
+              modify $ \s -> s { nameMap = (name,x) : nmMap }
+              return $ IDec name e'
           otherwise -> do
-              env' <- gets symtab 
-              modify $ \e -> e { symtab = (name,e'):env' }
-              return $ IDec name e' 
+              newName <- uniqueName name
+              modify $ \s -> s {
+                    symtab = (newName,e') :  ctxt
+                  , nameMap = (name,newName) : nmMap 
+                }
+              return $ IDec newName e' 
 
     -- very ugly, try to change (need to figure out how to handle function decls
     -- inside let exprs. Want let exprs to introduce functions, but also push to top level)
     Let decls body -> do
-        let llDeclRes = foldl collect [] decls
-        newDecls <- sequence llDeclRes 
-        newBody <- lambdaLift (last llDeclRes) body
+        newDecls <- foldM collect [] decls
+        newBody <- lambdaLift (return $ last newDecls) body
         return $ ILet newDecls newBody
         -- collects list of declarations inside Env monad
         -- each new decl relies on the previous decls environment (e.g. "last decs")
-        where collect :: [Env IExpr] -> DimlExpr -> [Env IExpr]
-              collect [] decl@(Decl _ _) = [lambdaLift env decl]
-              collect [] fun@(Fun name _ _ _ _) = [lambdaLift env fun]
-              collect decs decl@(Decl _ _) = decs ++ [lambdaLift (last decs) decl]
-              collect decs fun@(Fun name _ _ _ _) = decs ++ [lambdaLift (last decs) fun]          
+        where collect :: [IExpr] -> DimlExpr -> Env [IExpr]
+              collect decs decl@(Decl _ _) = do
+                  currDec <- lambdaLift (return $ last decs) decl
+                  return $ decs ++ [currDec]
+              collect decs fun@(Fun name _ _ _ _) = do
+                  lambdaLift (return $ last decs) fun 
+                  return decs          
 
     Lam arg typ body -> do
         nms <- gets names
-        let (lamName, supply) = uniqueName "lambda" nms
-        modify $ \s -> s { names = supply }
+        lamName <- uniqueName "lambda" 
         ctxt <- gets symtab
         lBody <- lambdaLift env body
         let lCtxt = map (\(name,val) -> name) ctxt
             lClos = IClosure lamName arg lCtxt lBody
-        return lClos
+        modify $ \s -> s { symtab = (lamName,lClos) : ctxt }
+        return (IVar lamName)
 
     Fun fName arg argType retType body -> do
+        (EnvState ctxt nms nmMap) <- get 
+        argName <- uniqueName arg 
+        newFName <- uniqueName fName
+        modify $ \s -> s { nameMap = (fName,newFName) : (arg,argName) : nmMap }
         fBody <- lambdaLift env body
-        ctxt <- gets symtab
-        nms <- gets names
-        let (newName, supply) = uniqueName fName nms
-            fCtxt = map (\(name,val) -> name) ctxt
-            fClos = IClosure fName arg fCtxt fBody
-        modify $ \s -> s { symtab = (fName,fClos):ctxt, names = supply }
-        return $ IDec newName (IVar newName) -- return declaration f = f
+        let fCtxt = map (\(name,val) -> name) ctxt
+            fClos = IClosure newFName argName fCtxt fBody
+        modify $ \s -> s { 
+                symtab = (newFName,fClos) : ctxt
+            }
+        return $ IVar newFName
 
-    Apply fun@(Var fname) arg -> do
+    Apply f arg -> do
+        (IVar fun) <- lambdaLift env f
         lArg <- lambdaLift env arg
-        return $ IApp (IVar fname) lArg
+        return $ IApp fun lArg
 
-    e -> error $ "Your eval func is broken: "++show e++" slipped through..."
-
-
-emptyLLTree :: EnvState
-emptyLLTree = EnvState [] Map.empty
-
-runLLTree :: Env IExpr -> (IExpr, EnvState)
-runLLTree m =  runState (runEnv m) emptyLLTree
-
-getClosures :: EnvState -> [IExpr]
-getClosures es = foldr (\(name,val) acc-> 
-      case val of
-        iclos@(IClosure _ _ _ _) -> val:acc 
-        _ -> acc
-      ) [] env
-    where env = symtab es 
-
-buildIRTree :: DimlExpr -> IExpr
-buildIRTree dimlExpr = 
-    case topLevels of 
-      (t:ts) -> ITopLevel (foldl ITopLevel t ts) iExpr
-      []     -> iExpr
-    where (iExpr, closures) = runLLTree $ lambdaLift (return Empty) dimlExpr
-          topLevels = getClosures closures
