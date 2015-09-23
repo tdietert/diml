@@ -52,7 +52,9 @@ IR is much cleaner than before, simplifying Add, Sub, Mul, Div, Great, and Less 
 
 **To Do:**
 
-- Code-Gen to LLVM
+- ~~Code-Gen to LLVM~~ (95%, needs testing)
+- ~~Lambda Lift Trasformation~~
+- Codegen to x86
 - Type Inference (Hindley-Milner)
 - Pattern Matching
 - Garbage Collection (RTS)
@@ -64,37 +66,10 @@ IR is much cleaner than before, simplifying Add, Sub, Mul, Div, Great, and Less 
 - References (Arrays too?)
 - Objects (sub-typing)
 
-
-####Examples of valid programs:
----
-**firstProgram.txt:**
-
-$ evalProgram "..\\firstProgram.txt"
-
-```
-let (fun fib(x:Int):Int = 
-    if (x < 2) then (1)
-    else fib (x-1) + fib (x - 2))
-in fib 6
-```
-
-**AST:**
-```
-Let [ Fun "fib" "x" TInt TInt 
-         (If (Less (Var "x") (DInt 2)) 
-             (DInt 1) 
-             (Add (Apply (Var "fib") (Sub (Var "x") (DInt 1))) (Apply (Var "fib") (Sub (Var "x") (DInt 2)))))
-    ] (Apply (Var "fib") (DInt 5))
-```
-
-**Evaluated:**
-
-$ it = VInt 13 : TInt
-
-
 ####Example Repl Usage:
+---
 
-diML> fun add1(x:Int):Int = x + 1
+**diML> fun add1(x:Int):Int = x + 1**
 
 ```
 Fun "add1" "x" TInt TInt (BinOp "+" (Var "x") (DInt 1))
@@ -111,7 +86,7 @@ entry:
 }
 ```
 
-diML> fun add2(x:Int):Int = add1(add1(x))
+**diML> fun add2(x:Int):Int = add1(add1(x))**
 
 ```
 Fun "add2" "x" TInt TInt (Apply (Var "add1") (Apply (Var "add1") (Var "x")))
@@ -138,3 +113,105 @@ entry:
 }
 ```
 
+####Example of valid program and compilation:
+---
+
+**Usage:**
+> $ stack exec dimlCompiler firstProgram.txt
+
+**firstProgram.txt:**
+```
+let y = 5,
+    fun fib(x:Int):Int = 
+       if (x < 2) then 1
+       else fib (x-1) + fib(x-2),
+    add1 = (\x:Int -> x + 1)
+in fib(y) + add1(y)
+```
+
+**Resulting AST:**
+```
+Let [ Decl "y" (DInt 5)
+    , Fun "fib" "x" TInt TInt 
+        (If (BinOp "<" (Var "x") (DInt 2)) (DInt 1) 
+        (BinOp "+" 
+            (Apply (Var "fib") (BinOp "-" (Var "x") (DInt 1))) 
+            (Apply (Var "fib") (BinOp "-" (Var "x") (DInt 2)))))
+    , Decl "add1" (Lam "x" TInt (BinOp "+" (Var "x") (DInt 1)))] 
+   (BinOp "+" 
+       (Apply (Var "fib") (Var "y")) 
+       (Apply (Var "add1") (Var "y")))
+```
+
+Then, we must "lambda lift" (aka closure conversion) all nested function declarations to the top level. LLVM IR does not support nested functions (as many assembly and assembly-like languages don't), so we must transform the AST into our own "IR". The transformation code is located in IR.hs:
+
+**Resulting (lambda lifted) IR AST:**
+``` 
+ITopLevel 
+    (ITopLevel 
+        (IClosure "lambda" "x" ["fib","y"] (IBinOp "+" (IVar "x") (IInt 1))) 
+        (IClosure "fib" "x" ["y"] 
+            (IIf (IBinOp "<" (IVar "x") (IInt 2)) 
+                (IInt 1) 
+                (IBinOp "+" 
+                    (IApp "fib" (IBinOp "-" (IVar "x") (IInt 1))) 
+                    (IApp "fib" (IBinOp "-" (IVar "x") (IInt 2))))))) 
+    (ILet [ IDec "y" (IInt 5),
+          , IDec "add1" (IVar "lambda")] 
+        (IBinOp "+" 
+            (IApp "fib" (IVar "y")) 
+            (IApp "lambda" (IVar "y"))))
+```
+
+**Compilation to LLVM IR:**
+```
+define double @lambda(double %x, double %fib, double %y) {
+entry:
+  %0 = alloca double
+  store double %x, double* %0
+  %1 = load double* %0
+  %2 = fadd double %1, 1.000000e+00
+  ret double %2
+}
+
+define double @fib(double %x, double %y) {
+entry:
+  %0 = alloca double
+  store double %x, double* %0
+  %1 = load double* %0
+  %2 = fcmp ult double %1, 2.000000e+00
+  %3 = uitofp i1 %2 to double
+  br double %3, label %if.then, label %if.else
+
+if.then:                                          ; preds = %entry
+  br label %if.exit
+
+if.else:                                          ; preds = %entry
+  %4 = load double* %0
+  %5 = fsub double %4, 1.000000e+00
+  %6 = call double @fib(double %5)
+  %7 = load double* %0
+  %8 = fsub double %7, 2.000000e+00
+  %9 = call double @fib(double %8)
+  %10 = fadd double %6, %9
+  br label %if.exit
+
+if.exit:                                          ; preds = %if.else, %if.then
+  %11 = phi double [ 1.000000e+00, %if.then ], [ %10, %if.else ]
+  ret double %11
+}
+
+define double @main() {
+entry:
+  %0 = alloca double
+  store double 5.000000e+00, double* %0
+  %1 = alloca double
+  %2 = load double (double, double, double)* @lambda
+  store double (double, double, double) %2, double* %1
+  %3 = load double* %0
+  %4 = call double @fib(double %3)
+  %5 = load double* %0
+  %6 = call double @lambda(double %5)
+  %7 = fadd double %4, %6
+  ret double %7
+}```
