@@ -50,8 +50,11 @@ procLlvmModule base source = do
         Left err -> print err >> return Nothing
         Right dimlExpr -> let irExpr = buildIRTree dimlExpr
                     in do 
+                      putStrLn "DimlExpr AST:\n"
                       print dimlExpr 
+                      putStrLn "\nDimlIR AST:\n"
                       print irExpr 
+                      putStr "\n"
                       Just <$> codegen base irExpr
         -- Note:
         --    need to get type checking to work with context
