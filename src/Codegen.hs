@@ -66,6 +66,9 @@ external retty label argtys = addDefn $
 double :: Type
 double = FloatingPointType 64 IEEE
 
+retType :: Type
+retType = T.i32
+
 -- TO DO:
 -------------
 -- tuple :: Type
@@ -221,7 +224,7 @@ getvar var = do
     case lookup var syms of
         Just x  -> return x
         -- if var is not found as local var, it is a function
-        Nothing -> getfunc var
+        Nothing -> error $ "could not find " ++ var ++ "  in " ++ show syms
 
 getfunc :: String -> Codegen Operand
 getfunc fName = return (externf $ AST.Name fName)  

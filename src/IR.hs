@@ -45,8 +45,7 @@ lookupVarName var = do
     nmMap <- gets nameMap
     case lookup var nmMap of
         Just x -> return x
-        Nothing -> error (show var ++ " not in symbol table: " ++ show nmMap)
-------------
+        Nothing -> return var
 
 --------------------------------------------------
 -- Lambda Lifting (probably easier than I make it)
@@ -60,7 +59,7 @@ data IExpr = IInt Integer
            | IBinOp Name IExpr IExpr
            | IEq IExpr IExpr
            | IIf IExpr IExpr IExpr
-           | IApp Name IExpr
+           | IApp Name [IExpr]
            | IDec Name IExpr
            | ILet [IExpr] IExpr
            | ITup IExpr IExpr
@@ -79,14 +78,15 @@ runLLTree :: Env IExpr -> (IExpr, EnvState)
 runLLTree m =  runState (runEnv m) emptyLLTree
 
 getClosures :: EnvState -> [IExpr]
-getClosures es = foldr collectClosures [] env
+getClosures es = foldl collectClosures [] env
     where env = symtab es 
-          collectClosures (name,f@(IClosure _ _ _ _)) clsrs = f:clsrs
-          collectClosures _ clsrs = clsrs 
+          collectClosures clsrs (name,f@(IClosure _ _ _ _)) = f:clsrs
+          collectClosures clsrs _ = clsrs 
 
 buildIRTree :: DimlExpr -> IExpr
 buildIRTree dimlExpr =  
     case getClosures closures of 
+        -- add toplevel let env to end of function(closure) declarations
         (c:cs) -> foldl ITopLevel c $ cs++[prgm]
         []     -> prgm
     where (prgm, closures) = runLLTree $ lambdaLift (return Empty) dimlExpr
@@ -128,9 +128,9 @@ lambdaLift env expr = case expr of
         nmMap <- gets nameMap
         ctxt <- gets symtab 
         case e' of
-          (IVar x) -> do
-              modify $ \s -> s { nameMap = (name,x) : nmMap }
-              return $ IDec name e'
+          (IVar x) -> return Empty -- do
+          --     modify $ \s -> s { nameMap = (name,x) : nmMap }
+          --     return $ IDec x (IVar x)
           otherwise -> do
               newName <- uniqueName name
               modify $ \s -> s {
@@ -148,12 +148,21 @@ lambdaLift env expr = case expr of
         -- collects list of declarations inside Env monad
         -- each new decl relies on the previous decls environment (e.g. "last decs")
         where collect :: [IExpr] -> DimlExpr -> Env [IExpr]
-              collect decs decl@(Decl _ _) = do
-                  currDec <- lambdaLift (return $ last decs) decl
-                  return $ decs ++ [currDec]
+              -- if declaration is lambda, lift out of decl, 
+              -- give declared var alias to lambda name
+              collect decs (Decl name lam@(Lam arg typ body)) = do
+                  (IVar lamName) <- lambdaLift (return $ last decs) lam
+                  nmMap <- gets nameMap
+                  modify $ \s -> s { nameMap = (name,lamName):nmMap }
+                  return decs
+              -- if declaration is function, lift out of decl
               collect decs fun@(Fun name _ _ _ _) = do
                   lambdaLift (return $ last decs) fun 
-                  return decs          
+                  return decs   
+              collect decs decl = do
+                  currDec <- lambdaLift (return $ last decs) decl
+                  return $ decs ++ [currDec]
+      
 
     Lam arg typ body -> do
         nms <- gets names
@@ -169,17 +178,39 @@ lambdaLift env expr = case expr of
         (EnvState ctxt nms nmMap) <- get 
         argName <- uniqueName arg 
         newFName <- uniqueName fName
-        modify $ \s -> s { nameMap = (fName,newFName) : (arg,argName) : nmMap }
-        fBody <- lambdaLift env body
-        let fCtxt = map (\(name,val) -> name) ctxt
-            fClos = IClosure newFName argName fCtxt fBody
+
+        -- tranform fun body with temporary closure
+        let fCtxt = map (\(name,val) -> name) $ filter cleanClosures ctxt
+            tmpClos = IClosure newFName argName fCtxt Empty
         modify $ \s -> s { 
-                symtab = (newFName,fClos) : ctxt
-            }
+            symtab = (newFName, tmpClos) : ctxt
+          , nameMap = (fName,newFName) : (arg,argName) : nmMap
+        }
+        fBody <- lambdaLift env body
+
+        -- fix closure in symboltable with fully transformed closure
+        sytb <- gets symtab
+        let fClos = IClosure newFName argName fCtxt fBody
+            (top,(s:syms)) = span (/= (newFName,tmpClos)) sytb
+        modify $ \s -> s { 
+            symtab = top ++ [(newFName,fClos)] ++ syms
+        }
+
         return $ IVar newFName
 
     Apply f arg -> do
         (IVar fun) <- lambdaLift env f
-        lArg <- lambdaLift env arg
-        return $ IApp fun lArg
+        sytb <- gets symtab
+        case lookup fun sytb of
+            Just (IClosure _ _ args _) -> do
+                lArg <- lambdaLift env arg
+                sytb <- gets symtab
+                -- makes sure necessary args are passed to func
+                return . IApp fun $ lArg : (map IVar args) 
+            Nothing -> error $ "looking up " ++ show fun ++ " in " ++ show sytb
+
+    where cleanClosures (name,expr) =
+              case expr of
+                (IClosure _ _ _ _ ) -> False
+                anythingelse -> True
 

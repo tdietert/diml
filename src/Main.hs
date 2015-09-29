@@ -43,19 +43,22 @@ simpleTypecheck line = do
                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
                 Right typ -> print expr
 
--- add type checking
+-- (type checking doesn't work, this is for REPL)
 procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
 procLlvmModule base source = do
     case parseExpr source of
         Left err -> print err >> return Nothing
-        Right dimlExpr -> let irExpr = buildIRTree dimlExpr
-                    in do 
-                      putStrLn "DimlExpr AST:\n"
-                      print dimlExpr 
-                      putStrLn "\nDimlIR AST:\n"
-                      print irExpr 
-                      putStr "\n"
-                      Just <$> codegen base irExpr
+        Right dimlExpr -> 
+            case typeCheck [] dimlExpr of
+                Left err -> print err >> return Nothing
+                Right typ -> do
+                    let irExpr = buildIRTree dimlExpr
+                    putStrLn "DimlExpr AST:\n"
+                    print dimlExpr 
+                    putStrLn "\nDimlIR AST:\n"
+                    print irExpr 
+                    putStr "\n"
+                    Just <$> codegen base irExpr
         -- Note:
         --    need to get type checking to work with context
         --    from AST.Module, right now the typing context is
@@ -69,8 +72,24 @@ procLlvmModule base source = do
             --        displayResult (eval [] ex) typ  -- prints interpreted expr
             --        Just <$> codegen base ex        -- returns llvm module AST
 
-processfile :: String -> IO (Maybe AST.Module)
-processfile fname = readFile fname >>= procLlvmModule initModule
+-- for single file compilation
+processfile :: String -> IO ()
+processfile fname = do 
+    file <- readFile fname 
+    case parseExpr file of 
+        Left err -> print err
+        Right dimlExpr -> 
+            case typeCheck [] dimlExpr of
+                Left err -> print err
+                Right typ -> do
+                    let irExpr = buildIRTree dimlExpr
+                    putStrLn "DimlExpr AST:\n"
+                    print dimlExpr 
+                    putStrLn "\nDimlIR AST:\n"
+                    print irExpr 
+                    putStr "\n"
+                    compileLlvmModule initModule (buildIRTree dimlExpr) fname 
+     
 
 initModule :: AST.Module
 initModule = emptyModule "dimlProgram"
@@ -94,4 +113,4 @@ main = do
     args <- getArgs
     case args of 
         []      -> repl
-        [fname] -> processfile fname >> return ()
+        [fname] -> processfile fname

@@ -1,9 +1,6 @@
-let y = 5,
+let y = 6,
+    addy = (\x:Int -> x + y),
     fun fib(x:Int):Int = 
        if (x < 2) then 1
-       else fib (x-1) + fib(x-2),
-    add1 = (\x:Int -> x + 1)
-in
-let z = 7 + 5 + 3,
-    fsq = (\x:Int -> x*x)
-in fib(y) + add1(y) + fsq(z)
+       else fib (x-1) + fib(x-2)
+in fib(y) + addy(5)
