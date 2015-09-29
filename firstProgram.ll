@@ -28,7 +28,10 @@ if.exit:                                          ; preds = %entry
 ; Function Attrs: nounwind readnone
 define double @main() #0 {
 entry:
-  ret double 1.000000e+00
+  %0 = tail call double @fib(double 6.000000e+00, double 6.000000e+00)
+  %1 = tail call double @lambda(double 5.000000e+00, double 6.000000e+00)
+  %2 = fadd double %0, %1
+  ret double %2
 }
 
 attributes #0 = { nounwind readnone }
