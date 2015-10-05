@@ -21,6 +21,7 @@ import qualified LLVM.General.AST.Attribute as A
 import qualified LLVM.General.AST.CallingConvention as CC
 import qualified LLVM.General.AST.FloatingPointPredicate as FP
 import qualified LLVM.General.AST.Type as T
+import qualified LLVM.General.AST.Linkage as L
 
 -------------------------------------------------------------------------------
 -- Module Level
@@ -40,10 +41,11 @@ addDefn d = do
   defs <- gets moduleDefinitions
   modify $ \s -> s { moduleDefinitions = defs ++ [d] }
 
-define ::  Type -> String -> [(Type, Name)] -> [BasicBlock] -> LLVM ()
-define retty label argtys body = addDefn $
+define ::  Type -> String -> [(Type, Name)] -> [BasicBlock] -> L.Linkage -> LLVM ()
+define retty label argtys body linkage = addDefn $
   GlobalDefinition $ functionDefaults {
-    name        = Name label
+    linkage     = linkage
+  , name        = Name label
   , parameters  = ([Parameter ty nm [] | (ty, nm) <- argtys], False)
   , returnType  = retty
   , basicBlocks = body
@@ -68,6 +70,12 @@ double = FloatingPointType 64 IEEE
 
 retType :: Type
 retType = T.i32
+
+tInt :: Type
+tInt = T.i32
+
+voidType :: Type
+voidType = T.void
 
 -- TO DO:
 -------------
@@ -265,6 +273,9 @@ cons = ConstantOperand
 -- casts integer types to float types
 uitofp :: Type -> Operand -> Codegen Operand
 uitofp ty a = instr $ UIToFP a ty []
+
+fptoui :: Type -> Operand -> Codegen Operand
+fptoui ty a = instr $ FPToSI a ty [] 
 
 toArgs :: [Operand] -> [(Operand, [A.ParameterAttribute])]
 toArgs = map (\x -> (x, []))

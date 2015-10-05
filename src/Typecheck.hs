@@ -98,6 +98,12 @@ check expr = case expr of
             TArr a b | (a == t2) -> return b
                      | otherwise -> throwE $ Mismatch t2 a (show (Apply e1 e2))
             notArrType           -> throwE $ NotFunction t1
+    
+    PrintInt e1 -> do
+        t1 <- check e1
+        case t1 of
+            TInt -> return TInt
+            otherwise -> throwE $ Mismatch t1 TInt ("printInt: " ++ show e1)
 
     where tcNumExpr e = do
               t <- check e

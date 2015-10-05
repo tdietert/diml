@@ -65,6 +65,7 @@ data IExpr = IInt Integer
            | ITup IExpr IExpr
            | IClosure Name Arg [Arg] IExpr -- functions and lambdas
            | ITopLevel IExpr IExpr     -- top level closures followed by first let expr
+           | IPrintInt IExpr
            | Empty
            deriving (Eq,Show)
 
@@ -208,6 +209,10 @@ lambdaLift env expr = case expr of
                 -- makes sure necessary args are passed to func
                 return . IApp fun $ lArg : (map IVar args) 
             Nothing -> error $ "looking up " ++ show fun ++ " in " ++ show sytb
+
+    PrintInt e -> do
+      eIR <- lambdaLift env e
+      return $ IPrintInt eIR
 
     where cleanClosures (name,expr) =
               case expr of

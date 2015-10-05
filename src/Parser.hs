@@ -134,6 +134,11 @@ declExpr = do
     varAsgnmt <- expr
     return $ Decl var varAsgnmt
 
+prIntExpr :: Parser DimlExpr
+prIntExpr = do
+    toPrint <- reserved "printInt" *> parens expr
+    return $ PrintInt toPrint
+
 -- Types: 
 -- int | bool | arrow type type
 -------------------------------
@@ -169,4 +174,5 @@ factor =  funExpr
       <|> declExpr
       <|> varExpr
       <|> try tupleExpr
+      <|> prIntExpr
       <|> parens expr

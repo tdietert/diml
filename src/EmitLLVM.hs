@@ -11,6 +11,9 @@ import qualified LLVM.General.AST as AST
 import qualified LLVM.General.AST.Constant as Const
 import qualified LLVM.General.AST.Float as F
 import qualified LLVM.General.AST.FloatingPointPredicate as FP
+import qualified LLVM.General.AST.Linkage as L 
+import qualified LLVM.General.Target as TM
+import qualified LLVM.General.AST.Type as T
 
 import Data.Word
 import Data.Int
@@ -50,7 +53,7 @@ codegenTop :: IR.IExpr -> LLVM ()
 codegenTop (IR.ITopLevel e1 e2) = codegenTop e1 >> codegenTop e2
 
 codegenTop (IR.IClosure name arg env body) = do
-    define double name fnargs bls
+    define double name fnargs bls L.Internal
     where fnargs = toSig (arg:env) -- creates arg list of arg : [closure env vars]
           bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
@@ -62,7 +65,8 @@ codegenTop (IR.IClosure name arg env body) = do
               cgen body >>= ret
     
 codegenTop (IR.ILet decls body) = do
-    define double "main" [] bls
+    define voidType "print.tinteger" [(T.i64, AST.UnName 0)] [] L.External
+    define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
               setBlock entry 
@@ -83,6 +87,11 @@ gt a b = do
   test <- fcmp FP.UGT a b
   uitofp double test
 
+eq :: AST.Operand -> AST.Operand -> Codegen AST.Operand
+eq a b = do 
+  eqtest <- fcmp FP.OEQ a b 
+  uitofp double eqtest
+
 binops :: Map.Map String (AST.Operand -> AST.Operand -> Codegen AST.Operand)
 binops = Map.fromList [
               ("+", fadd)
@@ -91,6 +100,7 @@ binops = Map.fromList [
             , ("/", fdiv)
             , ("<", lt)
             , (">", gt)
+            , ("==", eq)
           ]
 
 -- code gen for code within blocks, creates sequence of instructions
@@ -99,6 +109,11 @@ cgen (IR.ITrue) = return true
 cgen (IR.IFalse) = return false
 cgen (IR.IInt n) = return $ int n
 cgen (IR.IVar x) = getvar x >>= load
+cgen (IR.IPrintInt n) = do
+  intArg <- cgen n
+  argToIntType <- fptoui T.i64 intArg
+  call (externf (AST.Name "print.tinteger")) [argToIntType]
+  return true
 -- cgen (IR.Tuple x y) = 
 cgen (IR.IApp fun args) = do 
     largs <- mapM cgen args 
@@ -170,7 +185,7 @@ codegen mod fn = withContext $ \context ->
 -----------------------------------
 
 passes :: PassSetSpec
-passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
+passes = defaultCuratedPassSetSpec
 
 compileLlvmModule :: AST.Module -> IExpr -> String -> IO ()
 compileLlvmModule base irExpr source = do
@@ -180,14 +195,23 @@ compileLlvmModule base irExpr source = do
 compile :: AST.Module -> String -> IO ()
 compile mod name =  
     withContext $ \context -> do
-      err <- runExceptT $ withModuleFromAST context mod $ \m -> do
-               withPassManager passes $ \pm -> do
-                 err <- runExceptT $ verify m
-                 case err of
-                   Left s -> putStr s
-                   Right _ -> return ()
-                 runPassManager pm m
-                 runExceptT $ writeLLVMAssemblyToFile (File $ (takeWhile (/= '.') name) ++ ".ll") m
-      case err of
-          Left s -> putStr s
-          Right _ -> return ()
+        err <- runExceptT $ withModuleFromLLVMAssembly context (File "/home/tdietert/Documents/github/dimlCompiler/builtins/builtins.ll") $ \builtins -> do
+            err <- liftM join . runExceptT . withModuleFromAST context mod $ \m -> do
+                      withPassManager passes $ \pm -> do
+                          err <- runExceptT $ verify m
+                          case err of
+                              Left s -> putStr s
+                              Right _ -> return ()
+                          runExceptT $ linkModules False m builtins
+                          runPassManager pm m
+                          let filename = takeWhile (/= '.') name
+                          runExceptT $ writeLLVMAssemblyToFile (File $ filename ++ ".ll") m
+                          moduleLLVMAssembly m
+                          liftM join $ runExceptT $ TM.withHostTargetMachine $ \target -> do
+                              runExceptT $ writeTargetAssemblyToFile target (File $ filename ++ ".s") m
+            case err of
+                Left s -> putStr s
+                Right _ -> return ()
+        case err of
+            Left s -> putStrLn $ show s
+            Right _ -> return ()

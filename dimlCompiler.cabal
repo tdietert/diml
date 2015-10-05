@@ -10,6 +10,7 @@ maintainer:          tdietert@mail.usf.edu
 copyright:           2010 Thomas Dietert
 category:            Web
 build-type:          Simple
+data-files:          builtins/builtins.ll
 cabal-version:       >=1.10
 
 library
@@ -28,7 +29,7 @@ executable dimlCompiler
   hs-source-dirs:      src
   main-is:             Main.hs
   other-modules:       IR,Syntax,Typecheck,Lexer,Parser
-  default-language:    Haskell2010
+  default-language:    Haskell2010 
   build-depends:       base >= 4.7 && < 5,
                        parsec,
                        mtl,

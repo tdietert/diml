@@ -23,6 +23,7 @@ data DimlExpr
     | Decl Name DimlExpr            -- helper expr for multi declaration letexprs
     | Let [DimlExpr] DimlExpr 
     | Tuple DimlExpr DimlExpr
+    | PrintInt DimlExpr
   deriving (Eq, Ord, Show)
 
 --Diml Patterns for pattern matching
