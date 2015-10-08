@@ -68,6 +68,9 @@ external retty label argtys = addDefn $
 double :: Type
 double = FloatingPointType 64 IEEE
 
+tuple :: Type
+tuple = VectorType 2 double
+
 retType :: Type
 retType = T.i32
 

@@ -63,7 +63,7 @@ data IExpr = IInt Integer
            | IDec Name IExpr
            | ILet [IExpr] IExpr
            | ITup IExpr IExpr
-           | IClosure Name Arg [Arg] IExpr -- functions and lambdas
+           | IClosure Name Arg SymbolTable IExpr -- functions and lambdas
            | ITopLevel IExpr IExpr     -- top level closures followed by first let expr
            | IPrintInt IExpr
            | Empty
@@ -170,8 +170,7 @@ lambdaLift env expr = case expr of
         lamName <- uniqueName "lambda" 
         ctxt <- gets symtab
         lBody <- lambdaLift env body
-        let lCtxt = map (\(name,val) -> name) ctxt
-            lClos = IClosure lamName arg lCtxt lBody
+        let lClos = IClosure lamName arg ctxt lBody
         modify $ \s -> s { symtab = (lamName,lClos) : ctxt }
         return (IVar lamName)
 
@@ -181,7 +180,7 @@ lambdaLift env expr = case expr of
         newFName <- uniqueName fName
 
         -- tranform fun body with temporary closure
-        let fCtxt = map (\(name,val) -> name) $ filter cleanClosures ctxt
+        let fCtxt = filter cleanClosures ctxt
             tmpClos = IClosure newFName argName fCtxt Empty
         modify $ \s -> s { 
             symtab = (newFName, tmpClos) : ctxt
@@ -207,7 +206,7 @@ lambdaLift env expr = case expr of
                 lArg <- lambdaLift env arg
                 sytb <- gets symtab
                 -- makes sure necessary args are passed to func
-                return . IApp fun $ lArg : (map IVar args) 
+                return . IApp fun $ lArg : (map (\(name,val) -> IVar name) args) 
             Nothing -> error $ "looking up " ++ show fun ++ " in " ++ show sytb
 
     PrintInt e -> do

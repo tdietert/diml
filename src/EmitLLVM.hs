@@ -39,11 +39,18 @@ true = cons $ Const.Float (F.Double 1)
 int :: Integer -> AST.Operand
 int = cons . Const.Float . F.Double . fromIntegral
 
+tup :: AST.Operand -> AST.Operand -> AST.Operand
+tup (AST.ConstantOperand a) (AST.ConstantOperand b) = cons . Const.Vector $ [a,b]
+
 one :: AST.Operand 
 one = cons $ Const.Int (fromIntegral 1) 32
 
-toSig :: [String] -> [(AST.Type, AST.Name)]
-toSig = map (\x -> (double, AST.Name x))
+toFunArg :: [(Arg,IExpr)] -> [(AST.Type, AST.Name)]
+toFunArg = map (\(name,expr) -> 
+      case expr of 
+          ITup e1 e2 -> (tuple, AST.Name name)
+          otherwise -> (double, AST.Name name)
+    ) 
 
 ------------------------
 -- Toplevel Codegen
@@ -54,18 +61,18 @@ codegenTop (IR.ITopLevel e1 e2) = codegenTop e1 >> codegenTop e2
 
 codegenTop (IR.IClosure name arg env body) = do
     define double name fnargs bls L.Internal
-    where fnargs = toSig (arg:env) -- creates arg list of arg : [closure env vars]
+    where fnargs = (double, AST.Name arg) : toFunArg env -- arg is hard coded as double, might not be so
           bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
               setBlock entry
-              forM (arg:env) $ \arg -> do
-                var <- alloca double               
+              forM fnargs $ \(typ,(AST.Name arg)) -> do
+                var <- alloca typ               
                 assign arg var                     
                 store var (local (AST.Name arg))   
               cgen body >>= ret
     
 codegenTop (IR.ILet decls body) = do
-    define voidType "print.tinteger" [(T.i64, AST.UnName 0)] [] L.External
+    define voidType "printInt" [(T.i64, AST.UnName 0)] [] L.External
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
@@ -109,10 +116,14 @@ cgen (IR.ITrue) = return true
 cgen (IR.IFalse) = return false
 cgen (IR.IInt n) = return $ int n
 cgen (IR.IVar x) = getvar x >>= load
+cgen (IR.ITup e1 e2) = do
+  e1' <- cgen e1
+  e2' <- cgen e2
+  return $ tup e1' e2'
 cgen (IR.IPrintInt n) = do
   intArg <- cgen n
   argToIntType <- fptoui T.i64 intArg
-  call (externf (AST.Name "print.tinteger")) [argToIntType]
+  call (externf (AST.Name "printInt")) [argToIntType]
   return true
 -- cgen (IR.Tuple x y) = 
 cgen (IR.IApp fun args) = do 
@@ -154,10 +165,16 @@ cgen (IR.IBinOp op a b) = do
           f ca cb
       Nothing -> error "No such operator"
 cgen (IR.IDec name e) = do
-    var <- alloca double
     asgn <- cgen e
-    assign name var
-    store var asgn
+    case e of 
+        ITup e1 e2 -> do
+            var <- alloca tuple
+            assign name var
+            store var asgn
+        otherwise -> do
+            var <- alloca double
+            assign name var
+            store var asgn
 cgen (IR.ILet decls body) = do
     mapM cgen decls
     cgen body
