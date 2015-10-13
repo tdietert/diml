@@ -12,7 +12,6 @@ import System.IO
 import Lexer 
 import Syntax
 
-
 --------------------------------------
 -- Parsing Programs from IO
 --------------------------------------
@@ -75,14 +74,14 @@ expr :: Parser DimlExpr
 expr = Expr.buildExpressionParser opTable factor
 
 intExpr :: Parser DimlExpr
-intExpr = DInt <$> integer
+intExpr = Lit . DInt <$> integer
 
 varExpr :: Parser DimlExpr
 varExpr = Var <$> identifier
 
 boolExpr :: Parser DimlExpr
-boolExpr =  DTrue <$ reserved "true"
-        <|> DFalse <$ reserved "false"
+boolExpr =  Lit DTrue <$ reserved "true"
+        <|> Lit DFalse <$ reserved "false"
 
 -- this could be cleaned up...
 funExpr :: Parser DimlExpr

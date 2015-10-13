@@ -17,10 +17,12 @@ import qualified LLVM.General.AST.Type as T
 
 import Data.Word
 import Data.Int
+import Data.List
 import Data.Maybe
 import Control.Monad.Except
 import Control.Applicative
 import Control.Monad.State
+import System.Directory
 import qualified Data.Map as Map
 
 import Codegen
@@ -212,7 +214,8 @@ compileLlvmModule base irExpr source = do
 compile :: AST.Module -> String -> IO ()
 compile mod name =  
     withContext $ \context -> do
-        err <- runExceptT $ withModuleFromLLVMAssembly context (File "/home/tdietert/Documents/github/dimlCompiler/builtins/builtins.ll") $ \builtins -> do
+        projectDir <- getCurrentDirectory
+        err <- runExceptT $ withModuleFromLLVMAssembly context (File $ projectDir ++ "/builtins/builtins.ll") $ \builtins -> do
             err <- liftM join . runExceptT . withModuleFromAST context mod $ \m -> do
                       withPassManager passes $ \pm -> do
                           err <- runExceptT $ verify m

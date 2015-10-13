@@ -96,9 +96,10 @@ buildIRTree dimlExpr =
 
 lambdaLift :: Env IExpr -> DimlExpr -> Env IExpr
 lambdaLift env expr = case expr of
-    DTrue -> return $ ITrue
-    DFalse -> return $ IFalse
-    DInt n -> return $ IInt n
+    Lit x -> case x of 
+                 DTrue -> return $ ITrue
+                 DFalse -> return $ IFalse
+                 DInt n -> return $ IInt n
     Var x -> do
         newName <- lookupVarName x
         return $ IVar newName
@@ -140,8 +141,6 @@ lambdaLift env expr = case expr of
                 }
               return $ IDec newName e' 
 
-    -- very ugly, try to change (need to figure out how to handle function decls
-    -- inside let exprs. Want let exprs to introduce functions, but also push to top level)
     Let decls body -> do
         newDecls <- foldM collect [] decls
         newBody <- lambdaLift (return $ last newDecls) body

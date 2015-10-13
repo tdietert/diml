@@ -42,9 +42,10 @@ lookupVar x = do
 check :: DimlExpr -> Check Type
 check expr = case expr of
     
-    DTrue  -> return TBool
-    DFalse -> return TBool
-    DInt n -> return TInt
+    Lit x -> case x of 
+                 DTrue  -> return TBool
+                 DFalse -> return TBool
+                 DInt n -> return TInt
 
     Var x  -> lookupVar x 
     

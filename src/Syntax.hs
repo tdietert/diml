@@ -8,11 +8,15 @@ data Type
     | TArr Type Type
     | TProd Type Type
     deriving (Eq, Ord, Show)
-    
-data DimlExpr 
-    = DTrue 
+
+data DLit 
+    = DTrue
     | DFalse
     | DInt Integer
+  deriving (Eq, Ord, Show)
+
+data DimlExpr 
+    = Lit DLit
     | Var Name
     | BinOp Name DimlExpr DimlExpr
     | Eq DimlExpr DimlExpr   
