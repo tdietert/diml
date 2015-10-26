@@ -11,6 +11,7 @@ import System.IO
 
 import Lexer 
 import Syntax
+import Type
 
 --------------------------------------
 -- Parsing Programs from IO
@@ -59,7 +60,6 @@ prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
 --                <$ whiteSpace
 --                <* notFollowedBy (choice . map reservedOp $ ops)
 
--- wonder if you can make a type table?
 opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
 opTable = [ [ binary "*" Expr.AssocLeft
             , binary "/" Expr.AssocLeft]
@@ -85,17 +85,17 @@ boolExpr =  Lit DTrue <$ reserved "true"
 
 -- this could be cleaned up...
 funExpr :: Parser DimlExpr
-funExpr = Fun <$> try name <*> arg <*> argType <*> returnType <*> body
+funExpr = Fun <$> try name <*> arg <*> body
     where name = reserved "fun" *> identifier 
           arg = char '(' *> identifier  -- one argument functions
-          argType = reservedOp ":" *> typeExpr
-          returnType = char ')' *> reservedOp ":" *> typeExpr
-          body = reservedOp "=" *> expr
+--        argType = reservedOp ":" *> typeExpr
+--        returnType = char ')' *> reservedOp ":" *> typeExpr
+          body = char ')' *> whiteSpace *> reservedOp "=" *> expr
 
 lamExpr :: Parser DimlExpr
-lamExpr = Lam <$> try arg <*> typ <*> body
+lamExpr = Lam <$> try arg <*> body
     where arg  = reservedOp "\\" *> identifier
-          typ  = reservedOp ":" *> typeExpr
+--        typ  = reservedOp ":" *> typeExpr
           body = reservedOp "->" *> expr 
 
 applyExpr :: Parser DimlExpr
@@ -142,10 +142,10 @@ prIntExpr = do
 -- int | bool | arrow type type
 -------------------------------
 boolType :: Parser Type
-boolType = TBool <$ reserved "Bool" 
+boolType = tBool <$ reserved "Bool" 
 
 intType :: Parser Type
-intType = TInt <$ reserved "Int"
+intType = tInt <$ reserved "Int"
 
 -- right associative type 
 arrowType :: Parser Type

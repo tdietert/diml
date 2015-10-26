@@ -114,11 +114,6 @@ lambdaLift env expr = case expr of
         e2' <- lambdaLift env e2
         return $ IBinOp s e1' e2'
 
-    Eq e1 e2 -> do
-        e1' <- lambdaLift env e1
-        e2' <- lambdaLift env e2
-        return $ IEq e1' e2'
-
     If e1 e2 e3 -> do
         e1' <- lambdaLift env e1
         e2' <- lambdaLift env e2
@@ -150,13 +145,13 @@ lambdaLift env expr = case expr of
         where collect :: [IExpr] -> DimlExpr -> Env [IExpr]
               -- if declaration is lambda, lift out of decl, 
               -- give declared var alias to lambda name
-              collect decs (Decl name lam@(Lam arg typ body)) = do
+              collect decs (Decl name lam@(Lam arg body)) = do
                   (IVar lamName) <- lambdaLift (return $ last decs) lam
                   nmMap <- gets nameMap
                   modify $ \s -> s { nameMap = (name,lamName):nmMap }
                   return decs
               -- if declaration is function, lift out of decl
-              collect decs fun@(Fun name _ _ _ _) = do
+              collect decs fun@(Fun name _ _) = do
                   lambdaLift (return $ last decs) fun 
                   return decs   
               collect decs decl = do
@@ -164,7 +159,7 @@ lambdaLift env expr = case expr of
                   return $ decs ++ [currDec]
       
 
-    Lam arg typ body -> do
+    Lam arg body -> do
         nms <- gets names
         lamName <- uniqueName "lambda" 
         ctxt <- gets symtab
@@ -173,7 +168,7 @@ lambdaLift env expr = case expr of
         modify $ \s -> s { symtab = (lamName,lClos) : ctxt }
         return (IVar lamName)
 
-    Fun fName arg argType retType body -> do
+    Fun fName arg body -> do
         (EnvState ctxt nms nmMap) <- get 
         argName <- uniqueName arg 
         newFName <- uniqueName fName

@@ -3,7 +3,7 @@ module Typecheck where
 -- Typechecker for minimal diML
 --------------------------------
 -- 
---         Typechecking using an ErrorT + Reader Monad transformer stack(?).
+--         Typechecking using an ErrorT + Reader Monad transformer stack.
 --      All this means is that ErrorT's base monad is a Reader Monad instead of the Identity Monad
 --      This way we can encapsulate ill typed errors in programs while carrying around a mutable typing environment (context)
 --
@@ -43,27 +43,27 @@ check :: DimlExpr -> Check Type
 check expr = case expr of
     
     Lit x -> case x of 
-                 DTrue  -> return TBool
-                 DFalse -> return TBool
-                 DInt n -> return TInt
+                 DTrue  -> return tBool
+                 DFalse -> return tBool
+                 DInt n -> return tInt
 
     Var x  -> lookupVar x 
     
     BinOp s e1 e2 
-        | s `elem` ["==",">","<"] -> tcNumExpr e1 >> tcNumExpr e2 >> return TBool
+        | s `elem` ["==",">","<"] -> tcNumExpr e1 >> tcNumExpr e2 >> return tBool
         | otherwise               -> tcNumExpr e1 >> tcNumExpr e2
 
     Eq e1 e2 -> do 
         t1 <- check e1
         t2 <- check e2
-        if t1 == t2 then return TBool
+        if t1 == t2 then return tBool
         else throwE $ Mismatch t1 t2 ("In equality comparison: " ++ show (Eq e1 e2))
 
-    Lam name argType body -> do
+    Lam name body -> do
         bodyType <- unionContext [(name,argType)] (check body)
         return $ TArr argType bodyType
 
-    fun@(Fun funName argName argType retType body) -> do
+    fun@(Fun funName argName body) -> do
         bodyType <- unionContext [(argName, argType),(funName,TArr argType retType)] (check body)
         let errMsg = "In function expr: " ++ show fun
         if bodyType == retType
@@ -103,18 +103,18 @@ check expr = case expr of
     PrintInt e1 -> do
         t1 <- check e1
         case t1 of
-            TInt -> return TInt
-            otherwise -> throwE $ Mismatch t1 TInt ("printInt: " ++ show e1)
+            tInt -> return tInt
+            otherwise -> throwE $ Mismatch t1 tInt ("printInt: " ++ show e1)
 
     where tcNumExpr e = do
               t <- check e
-              if t == TInt then return TInt
-              else throwE $ Mismatch t TInt ("numExpr: "++show e)
+              if t == tInt then return tInt
+              else throwE $ Mismatch t tInt ("numExpr: "++show e)
           
           tcBoolExpr e = do
               t <- check e
-              if t == TBool then return TBool
-              else throwE $ Mismatch t TBool (show e)
+              if t == tBool then return tBool
+              else throwE $ Mismatch t tBool (show e)
 
 -- this function takes a context and returns a function
 -- that reads a monad Transformer Check a and returns

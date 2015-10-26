@@ -3,10 +3,10 @@ module Main where
 import Parser
 import Syntax
 import IR
-import Typecheck
+import TypeInfer
+import Type
 import Codegen
 import EmitLLVM
---import Emit
 
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
@@ -16,49 +16,45 @@ import System.Environment
 
 import qualified LLVM.General.AST as AST
 
--- parses, type checks, and evaluates file
-evalProgram :: String -> IO ()
-evalProgram filename = do
-    program <- readFile filename
-    simpleTypecheck program
+-- LOTS OF STUFF COMMENTED OUT DURING TYPE INFERENCE IMPLEMENTATION
 
-simpleLambdaLift :: String -> IO ()
-simpleLambdaLift line = do
-    case parseExpr line of 
-        Left err -> print err
-        Right expr ->
-            case typeCheck [] expr of
-                Left err -> print err >> putStrLn "expr with failure:" >> print expr
-                Right typ -> print $ buildIRTree expr
+-- simpleLambdaLift :: String -> IO ()
+-- simpleLambdaLift line = do
+--     case parseExpr line of 
+--         Left err -> print err
+--         Right expr ->
+--             case typeCheck [] expr of
+--                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
+--                 Right typ -> print $ buildIRTree expr
                   
 
 -- REMEMBER: escape backslash when writing lambdas
 -- in string (in ghci, arg to process)
-simpleTypecheck :: String -> IO ()
-simpleTypecheck line = do
-    case parseExpr line of 
-        Left err -> print err
-        Right expr -> 
-            case typeCheck [] expr of
-                Left err -> print err >> putStrLn "expr with failure:" >> print expr
-                Right typ -> print expr
+-- simpleTypecheck :: String -> IO ()
+-- simpleTypecheck line = do
+--     case parseExpr line of 
+--         Left err -> print err
+--         Right expr -> 
+--             case typeCheck [] expr of
+--                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
+--                 Right typ -> print expr
 
 -- (type checking doesn't work, this is for REPL)
-procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
-procLlvmModule base source = do
-    case parseExpr source of
-        Left err -> print err >> return Nothing
-        Right dimlExpr -> 
-            case typeCheck [] dimlExpr of
-                Left err -> print err >> return Nothing
-                Right typ -> do
-                    let irExpr = buildIRTree dimlExpr
-                    putStrLn "DimlExpr AST:\n"
-                    print dimlExpr 
-                    putStrLn "\nDimlIR AST:\n"
-                    print irExpr 
-                    putStr "\n"
-                    Just <$> codegen base irExpr
+-- procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
+-- procLlvmModule base source = do
+--     case parseExpr source of
+--         Left err -> print err >> return Nothing
+--         Right dimlExpr -> do
+--             case typeCheck [] dimlExpr of
+--                 Left err -> print err >> return Nothing
+--                 Right typ -> do
+--                     let irExpr = buildIRTree dimlExpr
+--                     putStrLn "DimlExpr AST:\n"
+--                     print dimlExpr 
+--                     putStrLn "\nDimlIR AST:\n"
+--                     print irExpr 
+--                     putStr "\n"
+--                     Just <$> codegen base irExpr
         -- Note:
         --    need to get type checking to work with context
         --    from AST.Module, right now the typing context is
@@ -72,27 +68,45 @@ procLlvmModule base source = do
             --        displayResult (eval [] ex) typ  -- prints interpreted expr
             --        Just <$> codegen base ex        -- returns llvm module AST
 
--- for single file compilation
-processfile :: String -> IO ()
-processfile fname = do 
-    file <- readFile fname 
-    case parseExpr file of 
-        Left err -> print err
-        Right dimlExpr -> 
-            case typeCheck [] dimlExpr of
-                Left err -> print err
-                Right typ -> do
+procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
+procLlvmModule base source = do
+    case parseExpr source of
+        Left err -> print err >> return Nothing
+        Right dimlExpr -> do
+            case inferExpr empty dimlExpr of
+                Left err -> print err >> return Nothing
+                Right typeScheme -> do
                     let irExpr = buildIRTree dimlExpr
                     putStrLn "DimlExpr AST:\n"
                     print dimlExpr 
                     putStrLn "\nDimlIR AST:\n"
                     print irExpr 
                     putStr "\n"
-                    compileLlvmModule initModule (buildIRTree dimlExpr) fname 
+                    Just <$> codegen base irExpr
+
+-- for single file compilation
+processfile :: String -> IO ()
+processfile fname = do 
+    file <- readFile fname 
+    case parseExpr file of 
+        Left err -> print err
+        Right dimlExpr -> do
+            case inferExpr empty dimlExpr of
+                Left err -> print err 
+                Right typeScheme -> do
+                    print typeScheme
+                    let irExpr = buildIRTree dimlExpr
+                    putStrLn "DimlExpr AST:\n"
+                    print dimlExpr 
+                    putStrLn "\nDimlIR AST:\n"
+                    print irExpr 
+                    putStr "\n"
+                    --compileLlvmModule initModule (buildIRTree dimlExpr) fname 
      
 
 initModule :: AST.Module
 initModule = emptyModule "dimlProgram"
+
 
 repl :: IO ()
 repl = runInputT defaultSettings (loop initModule)
@@ -100,7 +114,7 @@ repl = runInputT defaultSettings (loop initModule)
               minput <- getInputLine "diML> "
               case minput of
                   Nothing -> outputStrLn "Goodbye."
-                  Just input -> do
+                  Just input -> do 
                         modn <- liftIO $ procLlvmModule mod' input
                         case modn of
                             Just modn -> loop modn
@@ -113,4 +127,4 @@ main = do
     args <- getArgs
     case args of 
         []      -> repl
-        [fname] -> processfile fname
+        [fname] -> processfile fname 

@@ -2,13 +2,6 @@ module Syntax where
 
 type Name = String
 
-data Type 
-    = TBool 
-    | TInt 
-    | TArr Type Type
-    | TProd Type Type
-    deriving (Eq, Ord, Show)
-
 data DLit 
     = DTrue
     | DFalse
@@ -18,10 +11,9 @@ data DLit
 data DimlExpr 
     = Lit DLit
     | Var Name
-    | BinOp Name DimlExpr DimlExpr
-    | Eq DimlExpr DimlExpr   
-    | Lam Name Type DimlExpr
-    | Fun Name Name Type Type DimlExpr  -- (name : T1) : T2 body-- Diml Expression Definition    
+    | BinOp Name DimlExpr DimlExpr 
+    | Lam Name DimlExpr
+    | Fun Name Name DimlExpr        -- (name : T1) : T2 body-- Diml Expression Definition    
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
     | Decl Name DimlExpr            -- helper expr for multi declaration letexprs
