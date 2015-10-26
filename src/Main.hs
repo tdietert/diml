@@ -14,6 +14,8 @@ import Control.Monad.Reader
 import System.Console.Haskeline
 import System.Environment
 
+import Debug.Trace
+
 import qualified LLVM.General.AST as AST
 
 -- LOTS OF STUFF COMMENTED OUT DURING TYPE INFERENCE IMPLEMENTATION
@@ -91,10 +93,14 @@ processfile fname = do
     case parseExpr file of 
         Left err -> print err
         Right dimlExpr -> do
-            case inferExpr empty dimlExpr of
+            -- just plug in "inferExpr" when done testing type inference
+            case constraintsExpr empty dimlExpr of
                 Left err -> print err 
-                Right typeScheme -> do
-                    print typeScheme
+                Right (cs,sub,typ,typSch) -> do
+                    putStrLn $ "Inferred Type: " ++ show typ
+                    putStrLn $ "Constraints: " ++ show cs
+                    putStrLn $ "Substitution: " ++ show sub
+                    putStrLn $ "Type Scheme: " ++ show typSch
                     let irExpr = buildIRTree dimlExpr
                     putStrLn "DimlExpr AST:\n"
                     print dimlExpr 
@@ -103,10 +109,17 @@ processfile fname = do
                     putStr "\n"
                     --compileLlvmModule initModule (buildIRTree dimlExpr) fname 
      
+processRepl :: String -> IO ()
+processRepl expr = 
+    case parseExpr expr of
+        Left err -> print err
+        Right dimlExpr -> 
+            case inferExpr empty dimlExpr of
+                Left err -> print err
+                Right scheme -> putStrLn $ show dimlExpr ++ " :: " ++ show scheme
 
 initModule :: AST.Module
 initModule = emptyModule "dimlProgram"
-
 
 repl :: IO ()
 repl = runInputT defaultSettings (loop initModule)
@@ -115,7 +128,7 @@ repl = runInputT defaultSettings (loop initModule)
               case minput of
                   Nothing -> outputStrLn "Goodbye."
                   Just input -> do 
-                        modn <- liftIO $ procLlvmModule mod' input
+                        modn <- liftIO $ (processRepl input >> procLlvmModule mod' input)
                         case modn of
                             Just modn -> loop modn
                             Nothing -> loop mod'
