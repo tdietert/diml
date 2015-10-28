@@ -18,57 +18,26 @@ import Debug.Trace
 
 import qualified LLVM.General.AST as AST
 
--- LOTS OF STUFF COMMENTED OUT DURING TYPE INFERENCE IMPLEMENTATION
-
--- simpleLambdaLift :: String -> IO ()
--- simpleLambdaLift line = do
---     case parseExpr line of 
---         Left err -> print err
---         Right expr ->
---             case typeCheck [] expr of
---                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
---                 Right typ -> print $ buildIRTree expr
+simpleLambdaLift :: String -> IO ()
+simpleLambdaLift line = do
+    case parseExpr line of 
+        Left err -> print err
+        Right expr ->
+            case inferExpr empty expr of
+                Left err -> print err >> putStrLn "expr with failure:" >> print expr
+                Right typ -> print $ buildIRTree expr
                   
 
 -- REMEMBER: escape backslash when writing lambdas
--- in string (in ghci, arg to process)
--- simpleTypecheck :: String -> IO ()
--- simpleTypecheck line = do
---     case parseExpr line of 
---         Left err -> print err
---         Right expr -> 
---             case typeCheck [] expr of
---                 Left err -> print err >> putStrLn "expr with failure:" >> print expr
---                 Right typ -> print expr
-
--- (type checking doesn't work, this is for REPL)
--- procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
--- procLlvmModule base source = do
---     case parseExpr source of
---         Left err -> print err >> return Nothing
---         Right dimlExpr -> do
---             case typeCheck [] dimlExpr of
---                 Left err -> print err >> return Nothing
---                 Right typ -> do
---                     let irExpr = buildIRTree dimlExpr
---                     putStrLn "DimlExpr AST:\n"
---                     print dimlExpr 
---                     putStrLn "\nDimlIR AST:\n"
---                     print irExpr 
---                     putStr "\n"
---                     Just <$> codegen base irExpr
-        -- Note:
-        --    need to get type checking to work with context
-        --    from AST.Module, right now the typing context is
-        --    simply line by line, but we need the repl to carry
-        --    a context around with it, as AST.Module is already
-        
-            --case typeCheck [] ex of
-            --    Left err -> print err >> return Nothing
-            --    Right typ -> do
-            --        print ex                        -- prints resulting expr
-            --        displayResult (eval [] ex) typ  -- prints interpreted expr
-            --        Just <$> codegen base ex        -- returns llvm module AST
+--           in string (in ghci, arg to process)
+simpleTypecheck :: String -> IO ()
+simpleTypecheck line = do
+    case parseExpr line of 
+        Left err -> print err
+        Right expr -> 
+            case inferExpr empty expr of
+                Left err -> print err >> putStrLn "expr with failure:" >> print expr
+                Right typ -> print expr
 
 procLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
 procLlvmModule base source = do
@@ -79,10 +48,10 @@ procLlvmModule base source = do
                 Left err -> print err >> return Nothing
                 Right typeScheme -> do
                     let irExpr = buildIRTree dimlExpr
-                    putStrLn "DimlExpr AST:\n"
-                    print dimlExpr 
+                    putStrLn "\nDimlExpr AST:\n"
+                    putStrLn $ "    " ++ show dimlExpr 
                     putStrLn "\nDimlIR AST:\n"
-                    print irExpr 
+                    putStrLn $ "    " ++ show irExpr 
                     putStr "\n"
                     Just <$> codegen base irExpr
 
@@ -102,12 +71,12 @@ processfile fname = do
                     putStrLn $ "Substitution: " ++ show sub
                     putStrLn $ "Type Scheme: " ++ show typSch
                     let irExpr = buildIRTree dimlExpr
-                    putStrLn "DimlExpr AST:\n"
+                    putStrLn "\nDimlExpr AST:\n"
                     print dimlExpr 
                     putStrLn "\nDimlIR AST:\n"
                     print irExpr 
                     putStr "\n"
-                    --compileLlvmModule initModule (buildIRTree dimlExpr) fname 
+                    compileLlvmModule initModule (buildIRTree dimlExpr) fname 
      
 processRepl :: String -> IO ()
 processRepl expr = 

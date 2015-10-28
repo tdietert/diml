@@ -73,13 +73,13 @@ codegenTop (IR.IClosure name arg env body) = do
                 store var (local (AST.Name arg))   
               cgen body >>= ret
     
-codegenTop (IR.ILet decls body) = do
+codegenTop (IR.ILet decl body) = do
     define voidType "printInt" [(T.i64, AST.UnName 0)] [] L.External
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
               setBlock entry 
-              forM decls (\decl -> cgen decl)
+              cgen decl
               cgen body >>= ret
 
 -------------------------------------------------------------------------------
@@ -129,6 +129,7 @@ cgen (IR.IPrintInt n) = do
   return true
 -- cgen (IR.Tuple x y) = 
 cgen (IR.IApp fun args) = do 
+    e <- get
     largs <- mapM cgen args 
     call (externf (AST.Name fun)) largs
 cgen (IR.IEq e1 e2) = do 
@@ -177,10 +178,11 @@ cgen (IR.IDec name e) = do
             var <- alloca double
             assign name var
             store var asgn
-cgen (IR.ILet decls body) = do
-    mapM cgen decls
-    cgen body
-cgen e = error $ "Failed on lookup " ++ show e
+cgen (IR.ILet decl body) = do
+    cgen decl
+    cgen body  
+
+cgen e = error $ "Failed on lookup " ++ show e ++ " when constructing IR"
 
 -------------------------------------------------------------------------------
 -- Compilation

@@ -17,7 +17,7 @@ data DimlExpr
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
     | Decl Name DimlExpr            -- helper expr for multi declaration letexprs
-    | Let [DimlExpr] DimlExpr 
+    | Let DimlExpr DimlExpr 
     | Tuple DimlExpr DimlExpr
     | PrintInt DimlExpr
   deriving (Eq, Ord, Show)

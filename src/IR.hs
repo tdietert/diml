@@ -61,7 +61,7 @@ data IExpr = IInt Integer
            | IIf IExpr IExpr IExpr
            | IApp Name [IExpr]
            | IDec Name IExpr
-           | ILet [IExpr] IExpr
+           | ILet IExpr IExpr
            | ITup IExpr IExpr
            | IClosure Name Arg SymbolTable IExpr -- functions and lambdas
            | ITopLevel IExpr IExpr     -- top level closures followed by first let expr
@@ -124,40 +124,26 @@ lambdaLift env expr = case expr of
         e' <- lambdaLift env e
         nmMap <- gets nameMap
         ctxt <- gets symtab 
+        newName <- uniqueName name
         case e' of
-          (IVar x) -> return Empty -- do
-          --     modify $ \s -> s { nameMap = (name,x) : nmMap }
-          --     return $ IDec x (IVar x)
-          otherwise -> do
-              newName <- uniqueName name
-              modify $ \s -> s {
-                    symtab = (newName,e') :  ctxt
-                  , nameMap = (name,newName) : nmMap 
+            lam@(IClosure lamName _ _ _) -> do
+                modify $ \s -> s {
+                    nameMap = (name,lamName) : nmMap
                 }
-              return $ IDec newName e' 
+                return $ lam
+            otherwise -> do
+                modify $ \s -> s {
+                   symtab = (newName,e') :  ctxt
+                 , nameMap = (name,newName) : nmMap 
+                }
+                return $ IDec newName e' 
 
-    Let decls body -> do
-        newDecls <- foldM collect [] decls
-        newBody <- lambdaLift (return $ last newDecls) body
-        return $ ILet newDecls newBody
-        -- collects list of declarations inside Env monad
-        -- each new decl relies on the previous decls environment (e.g. "last decs")
-        where collect :: [IExpr] -> DimlExpr -> Env [IExpr]
-              -- if declaration is lambda, lift out of decl, 
-              -- give declared var alias to lambda name
-              collect decs (Decl name lam@(Lam arg body)) = do
-                  (IVar lamName) <- lambdaLift (return $ last decs) lam
-                  nmMap <- gets nameMap
-                  modify $ \s -> s { nameMap = (name,lamName):nmMap }
-                  return decs
-              -- if declaration is function, lift out of decl
-              collect decs fun@(Fun name _ _) = do
-                  lambdaLift (return $ last decs) fun 
-                  return decs   
-              collect decs decl = do
-                  currDec <- lambdaLift (return $ last decs) decl
-                  return $ decs ++ [currDec]
-      
+    Let decl body -> do
+        decl' <- lambdaLift env decl
+        body' <- lambdaLift (return decl') body
+        case decl' of
+            (IClosure _ _ _ _) -> return $ body'
+            otherwise -> return $ ILet decl' body'      
 
     Lam arg body -> do
         nms <- gets names
@@ -166,31 +152,38 @@ lambdaLift env expr = case expr of
         lBody <- lambdaLift env body
         let lClos = IClosure lamName arg ctxt lBody
         modify $ \s -> s { symtab = (lamName,lClos) : ctxt }
-        return (IVar lamName)
+        return lClos
 
     Fun fName arg body -> do
         (EnvState ctxt nms nmMap) <- get 
-        argName <- uniqueName arg 
+        newArgName <- uniqueName arg 
         newFName <- uniqueName fName
 
         -- tranform fun body with temporary closure
         let fCtxt = filter cleanClosures ctxt
-            tmpClos = IClosure newFName argName fCtxt Empty
+            tmpClos = IClosure newFName newArgName fCtxt Empty
+
+        -- add func and arg to nameMap for lexical scoping
         modify $ \s -> s { 
             symtab = (newFName, tmpClos) : ctxt
-          , nameMap = (fName,newFName) : (arg,argName) : nmMap
+          , nameMap = (fName,newFName) : (arg,newArgName) : nmMap
         }
+
         fBody <- lambdaLift env body
 
         -- fix closure in symboltable with fully transformed closure
         sytb <- gets symtab
-        let fClos = IClosure newFName argName fCtxt fBody
+        let fClos = IClosure newFName newArgName fCtxt fBody
             (top,(s:syms)) = span (/= (newFName,tmpClos)) sytb
-        modify $ \s -> s { 
-            symtab = top ++ [(newFName,fClos)] ++ syms
-        }
 
-        return $ IVar newFName
+        -- since Functions are closures, we must return the state to
+        -- a point without all locally scoped vars that were added during
+        -- lambda lifting the body of the function (e.g. nested let expr)
+        modify $ \s -> s { 
+            symtab = (newFName,fClos) : ctxt,
+            nameMap = (fName,newFName) : nmMap
+        }
+        return fClos
 
     Apply f arg -> do
         (IVar fun) <- lambdaLift env f
@@ -200,15 +193,21 @@ lambdaLift env expr = case expr of
                 lArg <- lambdaLift env arg
                 sytb <- gets symtab
                 -- makes sure necessary args are passed to func
-                return . IApp fun $ lArg : (map (\(name,val) -> IVar name) args) 
+                return . IApp fun $ lArg : (map (\(name,val) -> IVar name) args)
             Nothing -> error $ "looking up " ++ show fun ++ " in " ++ show sytb
 
     PrintInt e -> do
       eIR <- lambdaLift env e
       return $ IPrintInt eIR
 
-    where cleanClosures (name,expr) =
+    where cleanClosures :: (Name,IR.IExpr) -> Bool
+          cleanClosures (name,expr) =
               case expr of
                 (IClosure _ _ _ _ ) -> False
                 anythingelse -> True
 
+          removeVarFromState :: Name -> Env ()
+          removeVarFromState name = do
+              nmMap <- gets nameMap
+              let (names,(var:rest)) = span (\(v,vnm) -> v /= name) nmMap
+              modify $ \s -> s { nameMap = names ++ rest }

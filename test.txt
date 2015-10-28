@@ -1,0 +1,51 @@
+Inferred Type: TVar (TV "f")
+Constraints: [(TArr (TVar (TV "a")) (TArr (TCon "Int") (TVar (TV "c"))),TArr (TCon "Int") (TArr (TCon "Int") (TCon "Int"))),(TVar (TV "b"),TVar (TV "c")),(TCon "Int",TVar (TV "e")),(TArr (TVar (TV "a")) (TVar (TV "b")),TArr (TCon "Int") (TVar (TV "f")))]
+Substitution: Subst (fromList [(TV "a",TCon "Int"),(TV "b",TCon "Int"),(TV "c",TCon "Int"),(TV "e",TCon "Int"),(TV "f",TCon "Int")])
+Type Scheme: Forall [] (TCon "Int")
+
+DimlExpr AST:
+
+Let (Decl "y" (Lit (DInt 6))) (Let (Decl "addy" (Lam "x" (BinOp "+" (Var "x") (Var "y")))) (Let (Fun "s" "y" (Lit (DInt 5))) (Apply (Var "addy") (Var "y"))))
+
+DimlIR AST:
+
+ITopLevel (ITopLevel (IClosure "lambda" "x" [("y",IInt 6)] (IBinOp "+" (IVar "x") (IVar "y"))) (IClosure "s" "y1" [("y",IInt 6)] (IInt 5))) (ILet (IDec "y" (IInt 6)) (IApp "lambda" [IVar "y"]))
+
+; ModuleID = 'dimlProgram'
+
+define internal double @lambda(double %x, double %y) {
+entry:
+  %0 = alloca double
+  store double %x, double* %0
+  %1 = alloca double
+  store double %y, double* %1
+  %2 = load double* %0
+  %3 = load double* %1
+  %4 = fadd double %2, %3
+  ret double %4
+}
+
+define internal double @s(double %y1, double %y) {
+entry:
+  %0 = alloca double
+  store double %y1, double* %0
+  %1 = alloca double
+  store double %y, double* %1
+  ret double 5.000000e+00
+}
+
+declare void @printInt(i64)
+
+define double @main() {
+entry:
+  %0 = alloca double
+  store double 6.000000e+00, double* %0
+  %1 = load double* %0
+  %2 = call double @lambda(double %1)
+  ret double %2
+}
+
+Incorrect number of arguments passed to called function!
+  %2 = call double @lambda(double %1)
+Broken module found, compilation terminated.
+Broken module found, compilation terminated.

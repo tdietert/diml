@@ -215,17 +215,16 @@ infer expr =
             addConstr bodyType tvRet
             return $ TArr tvArg bodyType
         
-        Let [] body -> infer body
-        Let (e:decls) body -> 
-            case e of 
-                Decl x e1 -> do 
-                    t1 <- infer e1
-                    extendEnv [(x, Forall [] t1)] (infer $ Let decls body)
-                fun@(Fun fname _ _ ) -> do
-                    env <- ask
-                    funType <- infer fun
-                    let scheme = generalize env funType
-                    extendEnv [(fname, scheme)] (infer $ Let decls body)
+        Let (Decl x e1) body -> do 
+            t1 <- infer e1
+            bodyType <- extendEnv [(x, Forall [] t1)] $ infer body
+            return bodyType 
+        Let fun@(Fun fname _ _ ) body -> do
+            env <- ask
+            funType <- infer fun
+            let scheme = generalize env funType
+            bodyType <- extendEnv [(fname, scheme)] $ infer body
+            return bodyType
         
         PrintInt e1    -> do
             t1 <- infer e1

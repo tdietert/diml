@@ -117,13 +117,17 @@ tupleExpr = do
     char ')' >> whiteSpace 
     return $ Tuple e1 e2
 
+transLet :: [DimlExpr] -> DimlExpr -> DimlExpr
+transLet [] body = body
+transLet (d:decls) body = Let d (transLet decls body)
+
 letExpr :: Parser DimlExpr
 letExpr = do
     reserved "let"
     decls <- commaSep $ funExpr <|> declExpr
     reserved "in"
     body <- expr
-    return $ Let decls body    
+    return $ transLet decls body
 
 -- this parser parses a let declaration
 -- ex: (x = 5) from 'let (x = 5) in x'
