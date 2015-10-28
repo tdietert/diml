@@ -21,43 +21,57 @@ This will run the repl for the language and you can write expressions that will 
 
 Since Haskell lends itself to expressing CFGs with algebraic data types, here is the Haskell definition of the DimlExpr data type as the CFG for the language:
 ```haskell
+
 type Name = String
 
+-- | Types
+data TVar = TV String
+    deriving (Eq, Ord, Show)
+
 data Type 
-    = TBool
-    | TInt 
+    = TVar TVar
+    | TCon String
     | TArr Type Type
     | TProd Type Type
-    
-data DimlExpr 
-    = DTrue 
+    deriving (Eq, Ord, Show)
+
+data Scheme = Forall [TVar] Type
+    deriving (Show)
+
+-- | Diml Expressions
+data DLit 
+    = DTrue
     | DFalse
     | DInt Integer
+  deriving (Eq, Ord, Show)
+
+data DimlExpr 
+    = Lit DLit
     | Var Name
-    | BinOp Name DimlExpr DimlExpr
-    | Eq DimlExpr DimlExpr   
-    | Lam Name Type DimlExpr
-    | Fun Name Name Type Type DimlExpr      
+    | BinOp Name DimlExpr DimlExpr 
+    | Lam Name DimlExpr
+    | Fun Name Name DimlExpr        -- (name : T1) : T2 body-- Diml Expression Definition    
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
-    | Decl Name DimlExpr            -
+    | Decl Name DimlExpr            -- helper expr for multi declaration letexprs
     | Let [DimlExpr] DimlExpr 
     | Tuple DimlExpr DimlExpr
+    | PrintInt DimlExpr
+  deriving (Eq, Ord, Show)
 ```
 
 #####Note:
 
-IR is much cleaner than before, simplifying Add, Sub, Mul, Div, Great, and Less exprs into a *BinOp* expr. Codegen for top level functions is done, however this will be replaced by top level let declarations. I may include a new expr soon for a "main" block and allow top level functions. These top level exprs will evaluate to llvm blocks (global vars and functions) and be evaluated in a single llvm module.
+Type inference is fully implemented. Will do some minor tweaks to first IR and then attempt to implement pattern matching specifically to destruct tuples (perhaps I need to add case exprs to demonstrate the pattern matching. I want to add the list data type as well, and have some built in functions like map and filter. 
 
 
 **To Do:**
-
-- ~~Code-Gen to LLVM~~ (95%, needs testing)
+- ~~Code-Gen to LLVM~~
 - ~~Lambda Lift Trasformation~~
-- Codegen to x86
-- Type Inference (Hindley-Milner)
+- ~~Type Inference (Hindley-Milner)~~ (96% needs testing)
+- Pretty Printing
+- Change let exprs in DimlExpr definition
 - Pattern Matching
-- Garbage Collection (RTS)
 
 
 **New Exprs (after base llvm codegen is added):**
@@ -72,44 +86,33 @@ IR is much cleaner than before, simplifying Add, Sub, Mul, Div, Great, and Less 
 **diML> fun add1(x:Int):Int = x + 1**
 
 ```
-Fun "add1" "x" TInt TInt (BinOp "+" (Var "x") (DInt 1))
+diML> let inc = (\n -> n + 1) in inc(inc(1))
+Let [Decl "inc" (Lam "n" (BinOp "+" (Var "n") (Lit (DInt 1))))] (Apply (Var "inc") (Apply (Var "inc") (Lit (DInt 1)))) :: Forall [] (TCon "Int")
 
-; ModuleID = 'diML Repl'
+DimlExpr AST:
+    Let [Decl "inc" (Lam "n" (BinOp "+" (Var "n") (Lit (DInt 1))))] (Apply (Var "inc") (Apply (Var "inc") (Lit (DInt 1))))
 
-define double @add1(double %x) {
+DimlIR AST:
+    ITopLevel (IClosure "lambda" "n" [] (IBinOp "+" (IVar "n") (IInt 1))) (ILet [] (IApp "lambda" [IApp "lambda" [IInt 1]]))
+
+; ModuleID = 'dimlProgram'
+
+define internal double @lambda(double %n) {
 entry:
   %0 = alloca double
-  store double %x, double* %0
-  %1 = load double* %0
-  %2 = fadd double %1, 1.000000e+00
-  ret double %2
-}
-```
-
-**diML> fun add2(x:Int):Int = add1(add1(x))**
-
-```
-Fun "add2" "x" TInt TInt (Apply (Var "add1") (Apply (Var "add1") (Var "x")))
-
-; ModuleID = 'diML Repl'
-
-define double @add1(double %x) {
-entry:
-  %0 = alloca double
-  store double %x, double* %0
+  store double %n, double* %0
   %1 = load double* %0
   %2 = fadd double %1, 1.000000e+00
   ret double %2
 }
 
-define double @add2(double %x) {
+declare void @printInt(i64)
+
+define double @main() {
 entry:
-  %0 = alloca double
-  store double %x, double* %0
-  %1 = load double* %0
-  %2 = call double @add1(double %1)
-  %3 = call double @add1(double %2)
-  ret double %3
+  %0 = call double @lambda(double 1.000000e+00)
+  %1 = call double @lambda(double %0)
+  ret double %1
 }
 ```
 
