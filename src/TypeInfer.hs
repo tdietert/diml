@@ -173,6 +173,7 @@ infer expr =
         Lit (DFalse) -> return tBool
         Lit (DTrue)  -> return tBool 
         Var x        -> lookupVarType x
+
         BinOp op e1 e2 -> do 
             t1 <- infer e1
             t2 <- infer e2
@@ -181,10 +182,17 @@ infer expr =
                 u2 = opTypes Map.! op
             addConstr u1 u2
             return tv
-        Tuple e1 e2 -> do
+
+        Tuple e1 e2 ann -> do
             t1 <- infer e1
             t2 <- infer e2
-            return $ TProd t1 t2
+            let tupType = TProd t1 t2
+            case ann of 
+                Just ann' -> do
+                    addConstr ann' tupType
+                Nothing -> return ()
+            return tupType
+
         If e1 e2 e3 -> do
             t1 <- infer e1
             t2 <- infer e2
@@ -192,21 +200,31 @@ infer expr =
             addConstr t1 tBool
             addConstr t2 t3
             return t2
+
         Decl x e -> infer e
+
         Apply e1 e2 -> do
             t1 <- infer e1
             t2 <- infer e2
             tv <- fresh
             addConstr t1 (TArr t2 tv)
             return tv
-        Lam arg e -> do
+
+        Lam arg ann e -> do
             tvArg <- fresh
             tvRet <- fresh
+
+            case ann of 
+            	Just ann' -> do 
+            		addConstr tvArg ann'
+            	Nothing -> return ()
+
             -- adds argument to context with type tvArg to infer type of e
             t1 <- extendEnv [(arg, Forall [] tvArg)] (infer e)
             addConstr tvRet t1
             return $ TArr tvArg tvRet
-        Fun fname arg body -> do
+
+        Fun fname arg argAnn retAnn body -> do
             tvArg <- fresh
             tvRet <- fresh
             let funSch = Forall [] (TArr tvArg tvRet)
@@ -219,7 +237,7 @@ infer expr =
             t1 <- infer e1
             bodyType <- extendEnv [(x, Forall [] t1)] $ infer body
             return bodyType 
-        Let fun@(Fun fname _ _ ) body -> do
+        Let fun@(Fun fname _ _ _ _) body -> do
             env <- ask
             funType <- infer fun
             let scheme = generalize env funType
@@ -230,6 +248,12 @@ infer expr =
             t1 <- infer e1
             addConstr t1 tInt
             return tInt
+
+        Parens e1 ann -> do 
+            t1 <- infer e1
+            case ann of 
+            	Just typ -> addConstr typ t1 >> return t1
+                Nothing -> return t1
 
 -- | Unification algorithm
 

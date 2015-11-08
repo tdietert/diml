@@ -94,6 +94,8 @@ buildIRTree dimlExpr =
 
 -------------------------------------------
 
+-- lambda lifting ignores type annotations because 
+-- type inference is run before lambda lifting
 lambdaLift :: Env IExpr -> DimlExpr -> Env IExpr
 lambdaLift env expr = case expr of
     Lit x -> case x of 
@@ -104,7 +106,7 @@ lambdaLift env expr = case expr of
         newName <- lookupVarName x
         return $ IVar newName
 
-    Tuple e1 e2 -> do
+    Tuple e1 e2 _-> do
         e1' <- lambdaLift env e1
         e2' <- lambdaLift env e2
         return $ ITup e1' e2'
@@ -142,10 +144,14 @@ lambdaLift env expr = case expr of
         decl' <- lambdaLift env decl
         body' <- lambdaLift (return decl') body
         case decl' of
-            (IClosure _ _ _ _) -> return $ body'
+            (IClosure name _ _ _) -> do 
+                -- FIX:
+                --    remove "placeHolder" var. 
+                placeHold <- uniqueName "lamPlaceHold"
+                return $ ILet (IDec placeHold $ IInt 0) body'
             otherwise -> return $ ILet decl' body'      
 
-    Lam arg body -> do
+    Lam arg _ body -> do
         nms <- gets names
         lamName <- uniqueName "lambda" 
         ctxt <- gets symtab
@@ -154,12 +160,15 @@ lambdaLift env expr = case expr of
         modify $ \s -> s { symtab = (lamName,lClos) : ctxt }
         return lClos
 
-    Fun fName arg body -> do
+    Fun fName arg _ _ body -> do
         (EnvState ctxt nms nmMap) <- get 
         newArgName <- uniqueName arg 
         newFName <- uniqueName fName
 
-        -- tranform fun body with temporary closure
+        -- tranform fun body with temporary closure\
+        -- !!!
+        -- MIGHT NOT NEED TO CLEANCLOSURES!!!
+        -- !!!
         let fCtxt = filter cleanClosures ctxt
             tmpClos = IClosure newFName newArgName fCtxt Empty
 
@@ -196,9 +205,11 @@ lambdaLift env expr = case expr of
                 return . IApp fun $ lArg : (map (\(name,val) -> IVar name) args)
             Nothing -> error $ "looking up " ++ show fun ++ " in " ++ show sytb
 
+    Parens e _ -> lambdaLift env e
+   
     PrintInt e -> do
-      eIR <- lambdaLift env e
-      return $ IPrintInt eIR
+      e' <- lambdaLift env e
+      return $ IPrintInt e'
 
     where cleanClosures :: (Name,IR.IExpr) -> Bool
           cleanClosures (name,expr) =

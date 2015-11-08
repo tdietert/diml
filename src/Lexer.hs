@@ -7,7 +7,7 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import qualified Text.Parsec.Token as Token
 
 ops :: [String]
-ops = words "-> + - * \\ = < <= > >= ; : \\n"
+ops = words "-> + - * \\ = < <= > >= ; : \\n ( )"
 
 keyWords :: [String]
 keyWords = words "true false fun if then else let in Int Bool printInt"
@@ -37,8 +37,8 @@ reservedOp = Token.reservedOp lexer     -- parses a reserved operation like "<="
 parens :: Parser a -> Parser a
 parens = Token.parens lexer             -- parses parens surrounding the parser passed to it
 
-whiteSpace :: Parser ()
-whiteSpace = Token.whiteSpace lexer     -- parses whitespace (most used token!)
+whitespace :: Parser ()
+whitespace = Token.whiteSpace lexer     -- parses whitespace (most used token!)
 
 commaSep :: Parser a -> Parser [a]
 commaSep = Token.commaSep lexer         -- parses comma (needed for let exprs)

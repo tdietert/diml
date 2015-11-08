@@ -20,7 +20,7 @@ import Type
 -- parses contents of string or file,
 -- excluding leading whitespace
 contents :: Parser a -> Parser a
-contents p = whiteSpace *> p
+contents p = whitespace *> p
 
 -- parses semicolon terminated expression
 topLevel :: Parser [DimlExpr]
@@ -70,6 +70,10 @@ opTable = [ [ binary "*" Expr.AssocLeft
             , binary "==" Expr.AssocLeft ] 
         ]      
 
+-- add "annot" to all exprs as last field. see intExpr
+annot :: Parser Type
+annot = reservedOp ":" *> typeExpr
+
 expr :: Parser DimlExpr
 expr = Expr.buildExpressionParser opTable factor
 
@@ -77,32 +81,36 @@ intExpr :: Parser DimlExpr
 intExpr = Lit . DInt <$> integer
 
 varExpr :: Parser DimlExpr
-varExpr = Var <$> identifier
+varExpr = Var <$> identifier 
 
 boolExpr :: Parser DimlExpr
-boolExpr =  Lit DTrue <$ reserved "true"
+boolExpr =  Lit DTrue <$ reserved "true" 
         <|> Lit DFalse <$ reserved "false"
 
 -- this could be cleaned up...
 funExpr :: Parser DimlExpr
-funExpr = Fun <$> try name <*> arg <*> body
-    where name = reserved "fun" *> identifier 
-          arg = char '(' *> identifier  -- one argument functions
---        argType = reservedOp ":" *> typeExpr
---        returnType = char ')' *> reservedOp ":" *> typeExpr
-          body = char ')' *> whiteSpace *> reservedOp "=" *> expr
+funExpr = do
+    reserved "fun"
+    name <- identifier
+    char '(' >> whitespace
+    arg <- identifier
+    argTyp <- optionMaybe annot
+    char ')' >> whitespace
+    retTyp <- optionMaybe annot
+    reservedOp "="
+    body <- expr
+    return $ Fun name arg argTyp retTyp body 
 
 lamExpr :: Parser DimlExpr
-lamExpr = Lam <$> try arg <*> body
+lamExpr = Lam <$> try arg <*> optionMaybe annot <*> body
     where arg  = reservedOp "\\" *> identifier
---        typ  = reservedOp ":" *> typeExpr
           body = reservedOp "->" *> expr 
 
 applyExpr :: Parser DimlExpr
-applyExpr = Apply <$> varExpr <*> parens expr
+applyExpr = Apply <$> varExpr <*> parens expr 
 
 ifExpr :: Parser DimlExpr
-ifExpr = If <$> e1 <*> e2 <*> e3
+ifExpr = If <$> try e1 <*> e2 <*> e3
     where e1 = reserved "if" *> expr
           e2 = reserved "then" *> expr
           e3 = reserved "else" *> expr
@@ -110,16 +118,13 @@ ifExpr = If <$> e1 <*> e2 <*> e3
 -- explicitly a pair: (x,y)
 tupleExpr :: Parser DimlExpr
 tupleExpr = do 
-    char '(' >> whiteSpace
+    reservedOp "("
     e1 <- expr
-    char ',' >> whiteSpace
+    char ',' >> whitespace
     e2 <- expr
-    char ')' >> whiteSpace 
-    return $ Tuple e1 e2
-
-transLet :: [DimlExpr] -> DimlExpr -> DimlExpr
-transLet [] body = body
-transLet (d:decls) body = Let d (transLet decls body)
+    reservedOp ")" 
+    ann <- optionMaybe annot
+    return $ Tuple e1 e2 ann
 
 letExpr :: Parser DimlExpr
 letExpr = do
@@ -128,28 +133,40 @@ letExpr = do
     reserved "in"
     body <- expr
     return $ transLet decls body
+    where transLet :: [DimlExpr] -> DimlExpr -> DimlExpr
+          transLet [] body = body
+          transLet (d:decls) body = Let d (transLet decls body)
 
 -- this parser parses a let declaration
 -- ex: (x = 5) from 'let (x = 5) in x'
 declExpr :: Parser DimlExpr
 declExpr = do
-    var <- try $ identifier <* reservedOp "="
+    var <- identifier <* reservedOp "="
     varAsgnmt <- expr
-    return $ Decl var varAsgnmt
+    return $ Decl var varAsgnmt 
 
 prIntExpr :: Parser DimlExpr
 prIntExpr = do
     toPrint <- reserved "printInt" *> parens expr
     return $ PrintInt toPrint
 
+parensExpr :: Parser DimlExpr
+parensExpr = Parens <$> parens expr <*> optionMaybe annot
+
 -- Types: 
--- int | bool | arrow type type
+-- int | bool | arrow type type | prod type type
 -------------------------------
 boolType :: Parser Type
 boolType = tBool <$ reserved "Bool" 
 
 intType :: Parser Type
 intType = tInt <$ reserved "Int"
+
+prodType :: Parser Type
+prodType = do
+    t1 <- char '(' *> typeExpr
+    t2 <- char ',' *> typeExpr <* char ')'
+    return $ TProd t1 t2
 
 -- right associative type 
 arrowType :: Parser Type
@@ -158,24 +175,26 @@ arrowType = tTypeExpr `chainr1` arrow
 
 -- base type exprs
 tTypeExpr :: Parser Type
-tTypeExpr = boolType 
-        <|> try (parens arrowType)
-        <|> intType 
+tTypeExpr =  boolType 
+         <|> prodType
+         <|> intType 
 
 typeExpr :: Parser Type
-typeExpr = try arrowType <|> tTypeExpr
+typeExpr =  try arrowType 
+        <|> tTypeExpr 
+        <|> parens tTypeExpr
 -------------------------------
 
 factor :: Parser DimlExpr
-factor =  funExpr
+factor =  try funExpr
       <|> lamExpr
       <|> try applyExpr
       <|> boolExpr
       <|> ifExpr
       <|> letExpr
       <|> intExpr
-      <|> declExpr
+      <|> try declExpr
       <|> varExpr
       <|> try tupleExpr
       <|> prIntExpr
-      <|> parens expr
+      <|> parensExpr

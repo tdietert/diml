@@ -206,7 +206,7 @@ codegen mod fn = withContext $ \context ->
 -----------------------------------
 
 passes :: PassSetSpec
-passes = defaultCuratedPassSetSpec
+passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
 
 compileLlvmModule :: AST.Module -> IExpr -> String -> IO ()
 compileLlvmModule base irExpr source = do
@@ -220,10 +220,7 @@ compile mod name =
         err <- runExceptT $ withModuleFromLLVMAssembly context (File $ projectDir ++ "/builtins/builtins.ll") $ \builtins -> do
             err <- liftM join . runExceptT . withModuleFromAST context mod $ \m -> do
                       withPassManager passes $ \pm -> do
-                          err <- runExceptT $ verify m
-                          case err of
-                              Left s -> putStr s
-                              Right _ -> return ()
+                          runExceptT $ verify m
                           runExceptT $ linkModules False m builtins
                           runPassManager pm m
                           let filename = takeWhile (/= '.') name
