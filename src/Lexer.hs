@@ -7,7 +7,7 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import qualified Text.Parsec.Token as Token
 
 ops :: [String]
-ops = words "-> + - * \\ = < <= > >= ; : \\n ( )"
+ops = words "-> + - * \\ = < <= > >= ; : \\n"
 
 keyWords :: [String]
 keyWords = words "true false fun if then else let in Int Bool printInt"

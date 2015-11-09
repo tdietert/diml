@@ -28,7 +28,7 @@ topLevel = many1 $ do
    e <- expr <* reservedOp ";"
    return e 
  
--- parses, type checks, and evaluates file
+-- parses file
 parseFile :: String -> IO ()
 parseFile filename = do
     program <- readFile filename
@@ -87,7 +87,6 @@ boolExpr :: Parser DimlExpr
 boolExpr =  Lit DTrue <$ reserved "true" 
         <|> Lit DFalse <$ reserved "false"
 
--- this could be cleaned up...
 funExpr :: Parser DimlExpr
 funExpr = do
     reserved "fun"
