@@ -19,6 +19,8 @@ lexer = Token.makeTokenParser style
                 , Token.identLetter = alphaNum <|> char '_'
                 , Token.reservedNames = keyWords 
                 , Token.reservedOpNames = ops
+                , Token.commentStart = "(*"
+                , Token.commentEnd = "*)"
             }
 
 -- Tokens

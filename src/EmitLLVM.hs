@@ -121,6 +121,9 @@ cgen (IR.IVar x) = getvar x >>= load
 cgen (IR.ITup e1 e2) = do
   e1' <- cgen e1
   e2' <- cgen e2
+  -- tuple needs to be handled differently, it doesn't work 
+  --    to return a constant Vector as functions may return tuples.
+  --    have to introduce pattern matching or different memory structure
   return $ tup e1' e2'
 cgen (IR.IPrintInt n) = do
   intArg <- cgen n

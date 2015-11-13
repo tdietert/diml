@@ -89,7 +89,7 @@ boolExpr =  Lit DTrue <$ reserved "true"
 
 funExpr :: Parser DimlExpr
 funExpr = do
-    reserved "fun"
+    try $ reserved "fun"
     name <- identifier
     char '(' >> whitespace
     arg <- identifier
@@ -127,7 +127,7 @@ tupleExpr = do
 
 letExpr :: Parser DimlExpr
 letExpr = do
-    reserved "let"
+    try $ reserved "let"
     decls <- commaSep $ funExpr <|> declExpr
     reserved "in"
     body <- expr
@@ -140,13 +140,13 @@ letExpr = do
 -- ex: (x = 5) from 'let (x = 5) in x'
 declExpr :: Parser DimlExpr
 declExpr = do
-    var <- identifier <* reservedOp "="
+    var <- try $ identifier <* reservedOp "="
     varAsgnmt <- expr
     return $ Decl var varAsgnmt 
 
 prIntExpr :: Parser DimlExpr
 prIntExpr = do
-    toPrint <- reserved "printInt" *> parens expr
+    toPrint <- try $ reserved "printInt" *> parens expr
     return $ PrintInt toPrint
 
 parensExpr :: Parser DimlExpr
@@ -185,15 +185,15 @@ typeExpr =  try arrowType
 -------------------------------
 
 factor :: Parser DimlExpr
-factor =  try funExpr
-      <|> lamExpr
-      <|> try applyExpr
-      <|> boolExpr
-      <|> ifExpr
-      <|> letExpr
-      <|> intExpr
-      <|> try declExpr
-      <|> varExpr
-      <|> try tupleExpr
-      <|> prIntExpr
-      <|> parensExpr
+factor = try applyExpr
+     <|> try declExpr
+     <|> funExpr
+     <|> lamExpr
+     <|> boolExpr
+     <|> ifExpr
+     <|> letExpr
+     <|> intExpr
+     <|> prIntExpr
+     <|> varExpr
+     <|> try tupleExpr
+     <|> parensExpr
