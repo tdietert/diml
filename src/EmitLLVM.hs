@@ -14,6 +14,7 @@ import qualified LLVM.General.AST.FloatingPointPredicate as FP
 import qualified LLVM.General.AST.Linkage as L 
 import qualified LLVM.General.Target as TM
 import qualified LLVM.General.AST.Type as T
+import qualified LLVM.General.AST.Instruction as Inst
 
 import Data.Word
 import Data.Int
@@ -40,9 +41,6 @@ true = cons $ Const.Float (F.Double 1)
 
 int :: Integer -> AST.Operand
 int = cons . Const.Float . F.Double . fromIntegral
-
-tup :: AST.Operand -> AST.Operand -> AST.Operand
-tup (AST.ConstantOperand a) (AST.ConstantOperand b) = cons . Const.Vector $ [a,b]
 
 one :: AST.Operand 
 one = cons $ Const.Int (fromIntegral 1) 32
@@ -119,17 +117,20 @@ cgen (IR.IFalse) = return false
 cgen (IR.IInt n) = return $ int n
 cgen (IR.IVar x) = getvar x >>= load
 cgen (IR.ITup e1 e2) = do
-  e1' <- cgen e1
-  e2' <- cgen e2
-  -- tuple needs to be handled differently, it doesn't work 
-  --    to return a constant Vector as functions may return tuples.
-  --    have to introduce pattern matching or different memory structure
-  return $ tup e1' e2'
+    e1' <- cgen e1
+    e2' <- cgen e2
+    tup <- alloca tuple 
+    instr $ Inst.InsertElement tup e1' (int 0) [("", AST.MetadataNode [])]     
+    instr $ Inst.InsertElement tup e2' (int 1) [("", AST.MetadataNode [])]     
+    -- tuple needs to be handled differently, it doesn't work 
+    --    to return a constant Vector as functions may return tuples.
+    --    have to introduce pattern matching or different memory structure
+    return tup
 cgen (IR.IPrintInt n) = do
-  intArg <- cgen n
-  argToIntType <- fptoui T.i64 intArg
-  call (externf (AST.Name "printInt")) [argToIntType]
-  return true
+    intArg <- cgen n
+    argToIntType <- fptoui T.i64 intArg
+    call (externf (AST.Name "printInt")) [argToIntType]
+    return true
 -- cgen (IR.Tuple x y) = 
 cgen (IR.IApp fun args) = do 
     e <- get
