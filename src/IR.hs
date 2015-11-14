@@ -178,7 +178,9 @@ lambdaLift env expr = case expr of
           , nameMap = (fName,newFName) : (arg,newArgName) : nmMap
         }
 
-        fBody <- lambdaLift env body
+        env' <- get
+
+        fBody <- lambdaLift env' body
 
         -- fix closure in symboltable with fully transformed closure
         sytb <- gets symtab
