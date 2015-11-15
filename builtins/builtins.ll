@@ -1,4 +1,4 @@
-declare i32 @printf(i8*, ...)
+declare i32 @printf(i8* noalias nocapture, ...)
 
 @.fmti = private unnamed_addr constant [3 x i8] c "%d\00"
 

@@ -148,7 +148,7 @@ lambdaLift env expr = case expr of
                 -- FIX:
                 --    remove "placeHolder" var. 
                 placeHold <- uniqueName "lamPlaceHold"
-                return $ ILet (IDec placeHold $ IInt 0) body'
+                return $ ILet Empty body'
             otherwise -> return $ ILet decl' body'      
 
     Lam arg _ body -> do
@@ -164,36 +164,27 @@ lambdaLift env expr = case expr of
         (EnvState ctxt nms nmMap) <- get 
         newArgName <- uniqueName arg 
         newFName <- uniqueName fName
-
-        -- tranform fun body with temporary closure\
-        -- !!!
-        -- MIGHT NOT NEED TO CLEANCLOSURES!!!
-        -- !!!
+        -- all closures are top level, don't need to keep in env
         let fCtxt = filter cleanClosures ctxt
             tmpClos = IClosure newFName newArgName fCtxt Empty
-
         -- add func and arg to nameMap for lexical scoping
         modify $ \s -> s { 
             symtab = (newFName, tmpClos) : ctxt
           , nameMap = (fName,newFName) : (arg,newArgName) : nmMap
         }
-
-        env' <- get
-
-        fBody <- lambdaLift env' body
-
+        fBody <- lambdaLift env body
         -- fix closure in symboltable with fully transformed closure
         sytb <- gets symtab
         let fClos = IClosure newFName newArgName fCtxt fBody
             (top,(s:syms)) = span (/= (newFName,tmpClos)) sytb
-
         -- since Functions are closures, we must return the state to
         -- a point without all locally scoped vars that were added during
         -- lambda lifting the body of the function (e.g. nested let expr)
         modify $ \s -> s { 
-            symtab = (newFName,fClos) : ctxt,
+            symtab = top ++ (newFName,fClos) : syms,
             nameMap = (fName,newFName) : nmMap
         }
+      
         return fClos
 
     Apply f arg -> do

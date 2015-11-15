@@ -45,6 +45,9 @@ int = cons . Const.Float . F.Double . fromIntegral
 one :: AST.Operand 
 one = cons $ Const.Int (fromIntegral 1) 32
 
+emptyVal :: AST.Operand
+emptyVal = cons $ Const.Null double
+
 toFunArg :: [(Arg,IExpr)] -> [(AST.Type, AST.Name)]
 toFunArg = map (\(name,expr) -> 
       case expr of 
@@ -77,8 +80,10 @@ codegenTop (IR.ILet decl body) = do
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
               setBlock entry 
-              cgen decl
-              cgen body >>= ret
+              case decl of 
+                  IR.Empty -> return emptyVal 
+                  _     -> cgen decl
+              cgen body >>= ret  
 
 -------------------------------------------------------------------------------
 -- Operations
@@ -185,7 +190,7 @@ cgen (IR.IDec name e) = do
 cgen (IR.ILet decl body) = do
     cgen decl
     cgen body  
-
+cgen (IR.Empty) = return emptyVal
 cgen e = error $ "Failed on lookup " ++ show e ++ " when constructing IR"
 
 -------------------------------------------------------------------------------
@@ -210,7 +215,7 @@ codegen mod fn = withContext $ \context ->
 -----------------------------------
 
 passes :: PassSetSpec
-passes = defaultCuratedPassSetSpec { optLevel = Just 3 }
+passes = defaultCuratedPassSetSpec
 
 compileLlvmModule :: AST.Module -> IExpr -> String -> IO ()
 compileLlvmModule base irExpr source = do
@@ -224,9 +229,9 @@ compile mod name =
         err <- runExceptT $ withModuleFromLLVMAssembly context (File $ projectDir ++ "/builtins/builtins.ll") $ \builtins -> do
             err <- liftM join . runExceptT . withModuleFromAST context mod $ \m -> do
                       withPassManager passes $ \pm -> do
-                          runExceptT $ verify m
-                          runExceptT $ linkModules False m builtins
                           runPassManager pm m
+                          runExceptT $ linkModules False m builtins
+                          runExceptT $ verify m
                           let filename = takeWhile (/= '.') name
                           runExceptT $ writeLLVMAssemblyToFile (File $ filename ++ ".ll") m
                           moduleLLVMAssembly m

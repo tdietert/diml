@@ -1,4 +1,4 @@
 let fun nest(x) = 
-    let fun nested(y) = y + 1 
+    let fun nested(x) = x + 1 
     in nested(x)
-in nest(1)
+in printInt(nest(1))

@@ -1,25 +1,27 @@
-	.file	"dimlProgram"
+	.file	"fp.bc"
 	.section	.rodata.cst8,"aM",@progbits,8
 	.align	8
 .LCPI0_0:
-	.quad	4607182418800017408
+	.quad	4607182418800017408     # double 1
 	.text
 	.align	16, 0x90
 	.type	nest,@function
-nest:
+nest:                                   # @nest
+# BB#0:                                 # %entry
 	vmovsd	.LCPI0_0(%rip), %xmm0
-	jmp	nested
+	jmp	nested                  # TAILCALL
 .Ltmp0:
 	.size	nest, .Ltmp0-nest
 
 	.section	.rodata.cst8,"aM",@progbits,8
 	.align	8
 .LCPI1_0:
-	.quad	4607182418800017408
+	.quad	4607182418800017408     # double 1
 	.text
 	.align	16, 0x90
 	.type	nested,@function
-nested:
+nested:                                 # @nested
+# BB#0:                                 # %entry
 	vaddsd	.LCPI1_0(%rip), %xmm0, %xmm0
 	ret
 .Ltmp1:
@@ -28,13 +30,14 @@ nested:
 	.section	.rodata.cst8,"aM",@progbits,8
 	.align	8
 .LCPI2_0:
-	.quad	4607182418800017408
+	.quad	4607182418800017408     # double 1
 	.text
 	.globl	main
 	.align	16, 0x90
 	.type	main,@function
-main:
+main:                                   # @main
 	.cfi_startproc
+# BB#0:                                 # %entry
 	pushq	%rax
 .Ltmp3:
 	.cfi_def_cfa_offset 16
@@ -51,15 +54,16 @@ main:
 	.globl	printInt
 	.align	16, 0x90
 	.type	printInt,@function
-printInt:
+printInt:                               # @printInt
 	.cfi_startproc
+# BB#0:
 	pushq	%rax
 .Ltmp6:
 	.cfi_def_cfa_offset 16
-	movq	%rdi, %rcx
+	movq	%rdi, %rax
 	movl	$.L.fmti, %edi
-	xorl	%eax, %eax
-	movq	%rcx, %rsi
+	movq	%rax, %rsi
+	xorb	%al, %al
 	callq	printf
 	popq	%rax
 	ret
@@ -67,10 +71,10 @@ printInt:
 	.size	printInt, .Ltmp7-printInt
 	.cfi_endproc
 
-	.type	.L.fmti,@object
+	.type	.L.fmti,@object         # @.fmti
 	.section	.rodata.str1.1,"aMS",@progbits,1
 .L.fmti:
-	.asciz	"%d"
+	.asciz	 "%d"
 	.size	.L.fmti, 3
 
 
