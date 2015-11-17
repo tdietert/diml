@@ -51,17 +51,15 @@ binary name = Expr.Infix (reservedOp name >> return (BinOp name))
 prefix :: Name -> (DimlExpr -> DimlExpr) -> (Expr.Operator String () Data.Functor.Identity.Identity DimlExpr)
 prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
 
--- infix apply expr (Add to op table as [apply] for curried look):
--- parses whitespace in between function __ arg for an apply expr
--- as long as whitespace not followed by another operator!
---apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
---apply = Expr.Infix space Expr.AssocLeft
---    where space = Apply 
---                <$ whiteSpace
---                <* notFollowedBy (choice . map reservedOp $ ops)
+apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
+apply = Expr.Infix space Expr.AssocLeft
+    where space = Apply 
+                <$ whitespace
+                <* notFollowedBy (choice . map reservedOp $ ops)
 
 opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
-opTable = [ [ binary "*" Expr.AssocLeft
+opTable = [ [apply]
+          , [ binary "*" Expr.AssocLeft
             , binary "/" Expr.AssocLeft]
           , [ binary "+" Expr.AssocLeft
             , binary "-" Expr.AssocLeft ]
@@ -105,9 +103,6 @@ lamExpr = Lam <$> try arg <*> optionMaybe annot <*> body
     where arg  = reservedOp "\\" *> identifier
           body = reservedOp "->" *> expr 
 
-applyExpr :: Parser DimlExpr
-applyExpr = Apply <$> varExpr <*> parens expr 
-
 ifExpr :: Parser DimlExpr
 ifExpr = If <$> try e1 <*> e2 <*> e3
     where e1 = reserved "if" *> expr
@@ -117,11 +112,8 @@ ifExpr = If <$> try e1 <*> e2 <*> e3
 -- explicitly a pair: (x,y)
 tupleExpr :: Parser DimlExpr
 tupleExpr = do 
-    reservedOp "("
-    e1 <- expr
-    char ',' >> whitespace
-    e2 <- expr
-    reservedOp ")" 
+    e1 <- reservedOp "(" *> expr <* reservedOp "," 
+    e2 <- expr <* reservedOp ")" 
     ann <- optionMaybe annot
     return $ Tuple e1 e2 ann
 
@@ -185,8 +177,7 @@ typeExpr =  try arrowType
 -------------------------------
 
 factor :: Parser DimlExpr
-factor = try applyExpr
-     <|> try declExpr
+factor = declExpr
      <|> funExpr
      <|> lamExpr
      <|> boolExpr

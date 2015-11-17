@@ -19,9 +19,11 @@ import qualified LLVM.General.AST as AST
 import qualified LLVM.General.AST.Constant as Const
 import qualified LLVM.General.AST.Attribute as A
 import qualified LLVM.General.AST.CallingConvention as CC
+import qualified LLVM.General.AST.Float as F
 import qualified LLVM.General.AST.FloatingPointPredicate as FP
 import qualified LLVM.General.AST.Type as T
 import qualified LLVM.General.AST.Linkage as L
+import qualified LLVM.General.AST.Instruction as Inst
 
 -------------------------------------------------------------------------------
 -- Module Level
@@ -77,13 +79,8 @@ retType = T.i32
 tInt :: Type
 tInt = T.i32
 
-voidType :: Type
-voidType = T.void
-
--- TO DO:
--------------
--- tuple :: Type
--- tuple = FloatingPointType 64 PairOfFloats
+tVoid :: Type
+tVoid = T.void
 
 -------------------------------------------------------------------------------
 -- Names
@@ -287,6 +284,13 @@ toArgs = map (\x -> (x, []))
 call :: Operand -> [Operand] -> Codegen Operand
 call fn args = instr $ Call False CC.C [] (Right fn) (toArgs args) [] []
 
+-- Inserts elem into vector
+insertElem :: Operand -> Operand -> Integer -> Codegen Operand
+insertElem e vec loc = instr $ Inst.InsertElement vec e (int loc) []
+
+extractElem :: Operand -> Integer -> Codegen Operand
+extractElem vec loc = instr $ Inst.ExtractElement vec (int loc) []
+
 -- allocates memory for a variable
 alloca :: Type -> Codegen Operand
 alloca ty = instr $ Alloca ty Nothing 0 []
@@ -310,3 +314,22 @@ ret val = terminator $ Do $ Ret (Just val) []
 
 phi :: Type -> [(Operand, Name)] -> Codegen Operand
 phi typ brs = instr $ Phi typ brs [] 
+
+------------------------
+-- Constant Operands
+------------------------
+
+false :: AST.Operand
+false = cons $ Const.Float (F.Double 0)
+
+true :: AST.Operand
+true = cons $ Const.Float (F.Double 1)
+
+int :: Integer -> AST.Operand
+int = cons . Const.Float . F.Double . fromIntegral
+
+one :: AST.Operand 
+one = cons $ Const.Int (fromIntegral 1) 32
+
+emptyVal :: AST.Operand
+emptyVal = cons $ Const.Null double

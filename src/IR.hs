@@ -143,21 +143,20 @@ lambdaLift env expr = case expr of
     Let decl body -> do
         decl' <- lambdaLift env decl
         body' <- lambdaLift (return decl') body
+        sytb <- gets symtab
         case decl' of
-            (IClosure name _ _ _) -> do 
-                -- FIX:
-                --    remove "placeHolder" var. 
-                placeHold <- uniqueName "lamPlaceHold"
-                return $ ILet Empty body'
+            (IClosure name _ _ _) -> return $ ILet Empty body'
             otherwise -> return $ ILet decl' body'      
 
     Lam arg _ body -> do
         nms <- gets names
         lamName <- uniqueName "lambda" 
-        ctxt <- gets symtab
+        ctxt <- gets (filter cleanClosures . symtab)
         lBody <- lambdaLift env body
         let lClos = IClosure lamName arg ctxt lBody
-        modify $ \s -> s { symtab = (lamName,lClos) : ctxt }
+        modify $ \s -> s { 
+            symtab = (lamName,lClos) : ctxt
+        }
         return lClos
 
     Fun fName arg _ _ body -> do
@@ -176,17 +175,25 @@ lambdaLift env expr = case expr of
         -- fix closure in symboltable with fully transformed closure
         sytb <- gets symtab
         let fClos = IClosure newFName newArgName fCtxt fBody
-            (top,(s:syms)) = span (/= (newFName,tmpClos)) sytb
+            (headSymTab,tailSymTab) = span (/= (newFName,tmpClos)) sytb
         -- since Functions are closures, we must return the state to
         -- a point without all locally scoped vars that were added during
         -- lambda lifting the body of the function (e.g. nested let expr)
-        modify $ \s -> s { 
-            symtab = top ++ (newFName,fClos) : syms,
-            nameMap = (fName,newFName) : nmMap
-        }
-      
-        return fClos
-
+        case tailSymTab of
+            (s:syms) -> do
+                modify $ \s -> s { 
+                   symtab = headSymTab ++ (newFName,fClos) : syms,
+                   nameMap = (fName,newFName) : nmMap
+                }
+                return fClos
+            [] -> do 
+                modify $ \s -> s { 
+                   symtab = headSymTab ++ [(newFName,fClos)],
+                   nameMap = (fName,newFName) : nmMap
+                }
+                return fClos
+                 
+ 
     Apply f arg -> do
         (IVar fun) <- lambdaLift env f
         sytb <- gets symtab

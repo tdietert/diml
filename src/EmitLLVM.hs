@@ -30,24 +30,19 @@ import Codegen
 import IR
 
 ------------------------
--- Constant Operands
-------------------------
+-- Builtin functions
+-----------------------
+diMLfst :: LLVM ()
+diMLfst = define double "fst" [(tuple, AST.Name "tuple")] bls L.External
+    where bls = createBlocks . execCodegen $ do
+              entry <- addBlock entryBlockName
+              setBlock entry
+              vec <- alloca tuple
+              assign "tuple" vec
+              store vec $ local (AST.Name "tuple")
+              extractElem vec 0 >>= ret     
 
-false :: AST.Operand
-false = cons $ Const.Float (F.Double 0)
-
-true :: AST.Operand
-true = cons $ Const.Float (F.Double 1)
-
-int :: Integer -> AST.Operand
-int = cons . Const.Float . F.Double . fromIntegral
-
-one :: AST.Operand 
-one = cons $ Const.Int (fromIntegral 1) 32
-
-emptyVal :: AST.Operand
-emptyVal = cons $ Const.Null double
-
+-- turn function arg into llvm arg
 toFunArg :: [(Arg,IExpr)] -> [(AST.Type, AST.Name)]
 toFunArg = map (\(name,expr) -> 
       case expr of 
@@ -75,7 +70,8 @@ codegenTop (IR.IClosure name arg env body) = do
               cgen body >>= ret
     
 codegenTop (IR.ILet decl body) = do
-    define voidType "printInt" [(T.i64, AST.UnName 0)] [] L.External
+   -- diMLfst
+    define tVoid "printInt" [(T.i64, AST.UnName 0)] [] L.External
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
@@ -125,8 +121,8 @@ cgen (IR.ITup e1 e2) = do
     e1' <- cgen e1
     e2' <- cgen e2
     tup <- alloca tuple 
-    instr $ Inst.InsertElement tup e1' (int 0) [("", AST.MetadataNode [])]     
-    instr $ Inst.InsertElement tup e2' (int 1) [("", AST.MetadataNode [])]     
+    insertElem e1' tup 0
+    insertElem e2' tup 1
     -- tuple needs to be handled differently, it doesn't work 
     --    to return a constant Vector as functions may return tuples.
     --    have to introduce pattern matching or different memory structure
@@ -180,9 +176,9 @@ cgen (IR.IDec name e) = do
     asgn <- cgen e
     case e of 
         ITup e1 e2 -> do
-            var <- alloca tuple
-            assign name var
-            store var asgn
+            tup <- cgen (ITup e1 e2)
+            assign name tup
+            return tup
         otherwise -> do
             var <- alloca double
             assign name var
