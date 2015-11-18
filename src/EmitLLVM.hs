@@ -132,7 +132,6 @@ cgen (IR.IPrintInt n) = do
     argToIntType <- fptoui T.i64 intArg
     call (externf (AST.Name "printInt")) [argToIntType]
     return true
--- cgen (IR.Tuple x y) = 
 cgen (IR.IApp fun args) = do 
     e <- get
     largs <- mapM cgen args 

@@ -34,25 +34,27 @@ lambda:
 	.align	16, 0x90
 	.type	fib,@function
 fib:
-	subq	$24, %rsp
+	subq	$56, %rsp
 	vucomisd	.LCPI2_0(%rip), %xmm0
 	jae	.LBB2_1
 	vmovsd	.LCPI2_3(%rip), %xmm0
-	addq	$24, %rsp
+	addq	$56, %rsp
 	ret
 .LBB2_1:
-	vmovsd	%xmm0, (%rsp)
+	vmovsd	%xmm0, 8(%rsp)
 	vaddsd	.LCPI2_1(%rip), %xmm0, %xmm0
-	vmovsd	%xmm1, 8(%rsp)
+	vmovsd	%xmm1, 40(%rsp)
+	vmovaps	%xmm2, 16(%rsp)
 	callq	fib
-	vmovsd	%xmm0, 16(%rsp)
-	vmovsd	(%rsp), %xmm0
+	vmovsd	%xmm0, 48(%rsp)
+	vmovsd	8(%rsp), %xmm0
 	vaddsd	.LCPI2_2(%rip), %xmm0, %xmm0
-	vmovsd	8(%rsp), %xmm1
+	vmovsd	40(%rsp), %xmm1
+	vmovaps	16(%rsp), %xmm2
 	callq	fib
-	vmovsd	16(%rsp), %xmm1
+	vmovsd	48(%rsp), %xmm1
 	vaddsd	%xmm0, %xmm1, %xmm0
-	addq	$24, %rsp
+	addq	$56, %rsp
 	ret
 .Ltmp2:
 	.size	fib, .Ltmp2-fib
