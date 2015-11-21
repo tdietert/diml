@@ -40,7 +40,10 @@ diMLfst = define double "fst" [(tuple, AST.Name "tuple")] bls L.External
               vec <- alloca tuple
               assign "tuple" vec
               store vec $ local (AST.Name "tuple")
-              extractElem vec 0 >>= ret     
+              val <- alloca double
+              elem <- extractElem vec 0 
+              store val elem  
+              ret val    
 
 -- turn function arg into llvm arg
 toFunArg :: [(Arg,IExpr)] -> [(AST.Type, AST.Name)]
@@ -70,7 +73,7 @@ codegenTop (IR.IClosure name arg env body) = do
               cgen body >>= ret
     
 codegenTop (IR.ILet decl body) = do
-   -- diMLfst
+    diMLfst
     define tVoid "printInt" [(T.i64, AST.UnName 0)] [] L.External
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do

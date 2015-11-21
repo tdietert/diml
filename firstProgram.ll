@@ -35,6 +35,13 @@ if.exit:                                          ; preds = %entry
 }
 
 ; Function Attrs: nounwind readnone
+define double @fst(<2 x double> %tuple) #0 {
+entry:
+  %0 = alloca double
+  ret double* %0
+}
+
+; Function Attrs: nounwind readnone
 define double @main() #0 {
 entry:
   %0 = tail call fastcc double @fib(double 1.000000e+01, double 2.342340e+05, <2 x double> undef)

@@ -59,11 +59,20 @@ fib:
 .Ltmp2:
 	.size	fib, .Ltmp2-fib
 
+	.globl	fst
+	.align	16, 0x90
+	.type	fst,@function
+fst:
+	leaq	-8(%rsp), %rax
+	ret
+.Ltmp3:
+	.size	fst, .Ltmp3-fst
+
 	.section	.rodata.cst8,"aM",@progbits,8
 	.align	8
-.LCPI3_0:
+.LCPI4_0:
 	.quad	4621819117588971520
-.LCPI3_1:
+.LCPI4_1:
 	.quad	4687288231794835456
 	.text
 	.globl	main
@@ -71,18 +80,18 @@ fib:
 	.type	main,@function
 main:
 	pushq	%rax
-	vmovsd	.LCPI3_0(%rip), %xmm0
-	vmovsd	.LCPI3_1(%rip), %xmm1
+	vmovsd	.LCPI4_0(%rip), %xmm0
+	vmovsd	.LCPI4_1(%rip), %xmm1
 	callq	fib
 	vmovsd	%xmm0, (%rsp)
-	vmovsd	.LCPI3_1(%rip), %xmm0
+	vmovsd	.LCPI4_1(%rip), %xmm0
 	callq	f
 	vmovsd	(%rsp), %xmm1
 	vaddsd	%xmm0, %xmm1, %xmm0
 	popq	%rax
 	ret
-.Ltmp3:
-	.size	main, .Ltmp3-main
+.Ltmp4:
+	.size	main, .Ltmp4-main
 
 	.globl	printInt
 	.align	16, 0x90
@@ -90,7 +99,7 @@ main:
 printInt:
 	.cfi_startproc
 	pushq	%rax
-.Ltmp5:
+.Ltmp6:
 	.cfi_def_cfa_offset 16
 	movq	%rdi, %rcx
 	movl	$.L.fmti, %edi
@@ -99,8 +108,8 @@ printInt:
 	callq	printf
 	popq	%rax
 	ret
-.Ltmp6:
-	.size	printInt, .Ltmp6-printInt
+.Ltmp7:
+	.size	printInt, .Ltmp7-printInt
 	.cfi_endproc
 
 	.type	.L.fmti,@object
