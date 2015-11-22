@@ -38,12 +38,11 @@ diMLfst = define double "fst" [(tuple, AST.Name "tuple")] bls L.External
               entry <- addBlock entryBlockName
               setBlock entry
               vec <- alloca tuple
-              assign "tuple" vec
               store vec $ local (AST.Name "tuple")
               val <- alloca double
               elem <- extractElem vec 0 
-              store val elem  
-              ret val    
+              store val elem
+              ret val  
 
 -- turn function arg into llvm arg
 toFunArg :: [(Arg,IExpr)] -> [(AST.Type, AST.Name)]
@@ -123,12 +122,9 @@ cgen (IR.IVar x) = getvar x >>= load
 cgen (IR.ITup e1 e2) = do
     e1' <- cgen e1
     e2' <- cgen e2
-    tup <- alloca tuple 
+    tup <- alloca tuple
     insertElem e1' tup 0
     insertElem e2' tup 1
-    -- tuple needs to be handled differently, it doesn't work 
-    --    to return a constant Vector as functions may return tuples.
-    --    have to introduce pattern matching or different memory structure
     return tup
 cgen (IR.IPrintInt n) = do
     intArg <- cgen n
@@ -179,8 +175,10 @@ cgen (IR.IDec name e) = do
     case e of 
         ITup e1 e2 -> do
             tup <- cgen (ITup e1 e2)
-            assign name tup
-            return tup
+            tupVal <- load tup
+            var <- alloca tuple
+            assign name var
+            store var tupVal
         otherwise -> do
             var <- alloca double
             assign name var

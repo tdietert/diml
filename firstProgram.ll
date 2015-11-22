@@ -38,7 +38,7 @@ if.exit:                                          ; preds = %entry
 define double @fst(<2 x double> %tuple) #0 {
 entry:
   %0 = alloca double
-  ret double* %0
+  ret double 1.000000e+05
 }
 
 ; Function Attrs: nounwind readnone

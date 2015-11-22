@@ -152,7 +152,6 @@ emptyCodegen = CodegenState (Name entryBlockName) Map.empty [] 1 0 Map.empty
 execCodegen :: Codegen a -> CodegenState
 execCodegen m = execState (runCodegen m) emptyCodegen
 
--- gets fresh name (so not to reuse func or var names in llvm code)
 fresh :: Codegen Word
 fresh = do
     i <- gets count
@@ -286,10 +285,10 @@ call fn args = instr $ Call False CC.C [] (Right fn) (toArgs args) [] []
 
 -- Inserts elem into vector
 insertElem :: Operand -> Operand -> Integer -> Codegen Operand
-insertElem e vec loc = instr $ Inst.InsertElement vec e (int loc) []
+insertElem e vec loc = instr $ Inst.InsertElement vec e (int32 loc) []
 
 extractElem :: Operand -> Integer -> Codegen Operand
-extractElem vec loc = instr $ Inst.ExtractElement vec (int loc) []
+extractElem vec loc = instr $ Inst.ExtractElement vec (int32 loc) []
 
 -- allocates memory for a variable
 alloca :: Type -> Codegen Operand
@@ -330,6 +329,9 @@ int = cons . Const.Float . F.Double . fromIntegral
 
 one :: AST.Operand 
 one = cons $ Const.Int (fromIntegral 1) 32
+
+int32 :: (Integral a) => a -> AST.Operand
+int32 = cons . Const.Int 32 . fromIntegral 
 
 emptyVal :: AST.Operand
 emptyVal = cons $ Const.Null double
