@@ -1,6 +1,0 @@
-let z = (1,2),
-    fun f(x) = let g = (\x -> x + 2) in g(x),
-    fun fib(x) =
-        if x < 2 then 1
-        else fib(x-1) + fib(x-2)
-in printInt(fib(10) + f(11))
