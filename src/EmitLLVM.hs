@@ -29,21 +29,6 @@ import qualified Data.Map as Map
 import Codegen
 import IR
 
-------------------------
--- Builtin functions
------------------------
-diMLfst :: LLVM ()
-diMLfst = define double "fst" [(tuple, AST.Name "tuple")] bls L.External
-    where bls = createBlocks . execCodegen $ do
-              entry <- addBlock entryBlockName
-              setBlock entry
-              vec <- alloca tuple
-              store vec $ local (AST.Name "tuple")
-              val <- alloca double
-              elem <- extractElem vec 0 
-              store val elem
-              ret val  
-
 -- turn function arg into llvm arg
 toFunArg :: [(Arg,IExpr)] -> [(AST.Type, AST.Name)]
 toFunArg = map (\(name,expr) -> 
@@ -66,14 +51,15 @@ codegenTop (IR.IClosure name arg env body) = do
               entry <- addBlock entryBlockName
               setBlock entry
               forM fnargs $ \(typ,(AST.Name arg)) -> do
-                var <- alloca typ               
-                assign arg var                     
-                store var (local (AST.Name arg))   
+		   var <- alloca typ               
+		   assign arg var                     
+		   store var (local (AST.Name arg))   
               cgen body >>= ret
     
 codegenTop (IR.ILet decl body) = do
-    diMLfst
     define tVoid "printInt" [(T.i64, AST.UnName 0)] [] L.External
+    define tuple "fst" [(tuple, AST.Name "tuple")] [] L.External
+    define tuple "snd" [(tuple, AST.Name "tuple")] [] L.External
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
@@ -123,9 +109,10 @@ cgen (IR.ITup e1 e2) = do
     e1' <- cgen e1
     e2' <- cgen e2
     tup <- alloca tuple
-    insertElem e1' tup 0
-    insertElem e2' tup 1
-    return tup
+    tup' <- load tup
+    tup1 <- insertElem e1' tup' 0
+    tup2 <- insertElem e2' tup1 1 
+    return tup2
 cgen (IR.IPrintInt n) = do
     intArg <- cgen n
     argToIntType <- fptoui T.i64 intArg
@@ -174,11 +161,9 @@ cgen (IR.IDec name e) = do
     asgn <- cgen e
     case e of 
         ITup e1 e2 -> do
-            tup <- cgen (ITup e1 e2)
-            tupVal <- load tup
             var <- alloca tuple
             assign name var
-            store var tupVal
+            store var asgn 
         otherwise -> do
             var <- alloca double
             assign name var

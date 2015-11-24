@@ -10,7 +10,7 @@ ops :: [String]
 ops = words "-> + - * \\ = < <= > >= ; : \\n ,"
 
 keyWords :: [String]
-keyWords = words "true false fun if then else let in Int Bool printInt"
+keyWords = words "fst snd true false fun if then else let in Int Bool printInt"
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser style

@@ -71,7 +71,7 @@ double :: Type
 double = FloatingPointType 64 IEEE
 
 tuple :: Type
-tuple = VectorType 2 double
+tuple = ArrayType 2 double
 
 retType :: Type
 retType = T.i32
@@ -285,10 +285,10 @@ call fn args = instr $ Call False CC.C [] (Right fn) (toArgs args) [] []
 
 -- Inserts elem into vector
 insertElem :: Operand -> Operand -> Integer -> Codegen Operand
-insertElem e vec loc = instr $ Inst.InsertElement vec e (int32 loc) []
+insertElem e vec loc = instr $ Inst.InsertValue vec e [fromIntegral loc] []
 
 extractElem :: Operand -> Integer -> Codegen Operand
-extractElem vec loc = instr $ Inst.ExtractElement vec (int32 loc) []
+extractElem vec loc = instr $ Inst.ExtractValue vec [fromIntegral loc] []
 
 -- allocates memory for a variable
 alloca :: Type -> Codegen Operand

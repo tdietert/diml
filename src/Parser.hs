@@ -141,6 +141,12 @@ prIntExpr = do
     toPrint <- try $ reserved "printInt" *> parens expr
     return $ PrintInt toPrint
 
+tupFst :: Parser DimlExpr
+tupFst = reserved "fst" *> tupleExpr    
+ 
+tupSnd :: Parser DimlExpr
+tupSnd = reserved "snd" *> tupleExpr
+
 parensExpr :: Parser DimlExpr
 parensExpr = Parens <$> parens expr <*> optionMaybe annot
 
