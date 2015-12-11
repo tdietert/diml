@@ -1,7 +1,7 @@
 ## diML Compiler (diminished ML)
 
 ##### Compiler in progress for my Honor's Thesis, Summer/Fall 2015
-Currently, the lexing and parsing, type checking, and evalution (to check parser) functions are written. Code generation with LLVM (using Stephen Diehl's nice tutorial <http://dev.stephendiehl.com/fun/WYAH.pdf> as a guide) is currently in progress.
+The project is in a semi-final state, where I have completed my thesis, but have much more to add/experiment with. The thesis covering the implementation of this Compiler is found in the file 'diML_Thesis.pdf.' This compiler uses Parsec for lexing, parsing, and AST generation. The two modules Typecheck.hs and TypeInfer.hs handle the typechecking (though TypeInfer.hs subsumes Typecheck.hs). Code generation targets LLVM IR using the llvm-general and llvm-general-pure libraries (Haskell bindings to call C++ LLVM functions) with the help of Stephen Diehl's tutorial <http://dev.stephendiehl.com/fun/WYAH.pdf>. 
 
 
 #####Build Instructions:
@@ -69,14 +69,14 @@ Type inference is fully implemented. Will do some minor tweaks to first IR and t
 - ~~Code-Gen to LLVM~~
 - ~~Lambda Lift Trasformation~~
 - ~~Type Inference (Hindley-Milner)~~ (96% needs testing)
+- ~~Change let exprs in DimlExpr definition~~
 - Pretty Printing
-- Change let exprs in DimlExpr definition
 - Pattern Matching
 
 
 **New Exprs (after base llvm codegen is added):**
 
-- Case Expressions
+- Case Expressions, Lists (with pattern matching)
 - References (Arrays too?)
 - Objects (sub-typing)
 

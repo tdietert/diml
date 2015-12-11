@@ -112,7 +112,7 @@ ifExpr = If <$> try e1 <*> e2 <*> e3
 -- explicitly a pair: (x,y)
 tupleExpr :: Parser DimlExpr
 tupleExpr = do 
-    e1 <- reservedOp "(" *> expr <* reservedOp "," 
+    e1 <- try $ reservedOp "(" *> expr <* reservedOp "," 
     e2 <- expr <* reservedOp ")" 
     ann <- optionMaybe annot
     return $ Tuple e1 e2 ann
@@ -142,13 +142,16 @@ prIntExpr = do
     return $ PrintInt toPrint
 
 tupFst :: Parser DimlExpr
-tupFst = reserved "fst" *> tupleExpr    
+tupFst = Builtins . TupFst <$> (try (reserved "fst") *> tupleExpr)
  
 tupSnd :: Parser DimlExpr
-tupSnd = reserved "snd" *> tupleExpr
+tupSnd = Builtins . TupSnd <$> (try (reserved "snd") *> tupleExpr)
 
 parensExpr :: Parser DimlExpr
 parensExpr = Parens <$> parens expr <*> optionMaybe annot
+
+builtins :: Parser DimlExpr
+builtins = tupFst <|> tupSnd
 
 -- Types: 
 -- int | bool | arrow type type | prod type type
@@ -192,5 +195,6 @@ factor = declExpr
      <|> intExpr
      <|> prIntExpr
      <|> varExpr
-     <|> try tupleExpr
+     <|> tupleExpr
+     <|> builtins
      <|> parensExpr

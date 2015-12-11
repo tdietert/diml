@@ -130,11 +130,6 @@ lookupVarType x = do
       -- gives fresh variable type variables in case of conflicts in env
       Just s@(Forall env typ) -> instantiate s >>= (\t -> return t)
 
-
-          -- case env of 
-          --     [] -> return typ
-          --     typeenv -> 
-
 -- "local" simply runs a function on the Reader Monad environment and
 --  procduces the new Reader Environment resulting from the function execution
 extendEnv :: [(Name, Scheme)] -> Infer a -> Infer a 
@@ -224,6 +219,9 @@ infer expr =
             addConstr tvRet t1
             return $ TArr tvArg tvRet
 
+        -- fix:
+        -- | believe the programmer, make type annots 
+        -- | influence the type inference here.
         Fun fname arg argAnn retAnn body -> do
             tvArg <- fresh
             tvRet <- fresh
@@ -254,7 +252,16 @@ infer expr =
             case ann of 
             	Just typ -> addConstr typ t1 >> return t1
                 Nothing -> return t1
-
+         
+        Builtins e1 -> do
+            case e1 of 
+               TupFst e -> do
+                   (TProd t1 t2) <- infer e
+                   return t1
+               TupSnd e -> do
+                   (TProd t1 t2) <- infer e
+                   return t2
+ 
 -- | Unification algorithm
 
 -- Solver carries around "unifier", a tuple of the current substitution

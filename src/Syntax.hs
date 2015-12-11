@@ -11,6 +11,11 @@ data DLit
     | DInt Integer
   deriving (Eq, Ord, Show)
 
+data Builtins
+    = TupFst DimlExpr
+    | TupSnd DimlExpr
+  deriving (Eq, Ord, Show)
+
 data DimlExpr 
     = Lit DLit 
     | Var Name
@@ -24,6 +29,7 @@ data DimlExpr
     | Tuple DimlExpr DimlExpr Annot
     | Parens DimlExpr Annot
     | PrintInt DimlExpr
+    | Builtins Builtins
   deriving (Eq, Ord, Show)
 
 --Diml Patterns for pattern matching

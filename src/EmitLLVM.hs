@@ -51,9 +51,9 @@ codegenTop (IR.IClosure name arg env body) = do
               entry <- addBlock entryBlockName
               setBlock entry
               forM fnargs $ \(typ,(AST.Name arg)) -> do
-		   var <- alloca typ               
-		   assign arg var                     
-		   store var (local (AST.Name arg))   
+                  var <- alloca typ               
+                  assign arg var                     
+                  store var (local (AST.Name arg))   
               cgen body >>= ret
     
 codegenTop (IR.ILet decl body) = do
@@ -172,6 +172,10 @@ cgen (IR.ILet decl body) = do
     cgen decl
     cgen body  
 cgen (IR.Empty) = return emptyVal
+cgen (IR.IBuiltin e) =
+    case e of 
+        ITupFst e' -> cgen $ IR.IApp "fst" [e']
+        ITupSnd e' -> cgen $ IR.IApp "snd" [e']
 cgen e = error $ "Failed on lookup " ++ show e ++ " when constructing IR"
 
 -------------------------------------------------------------------------------

@@ -48,9 +48,13 @@ lookupVarName var = do
         Nothing -> return var
 
 --------------------------------------------------
--- Lambda Lifting (probably easier than I make it)
+-- Lambda Lifting:
 --     defines another IR AST with lambda Lifts
 --------------------------------------------------
+data IBuiltin = ITupFst IExpr
+              | ITupSnd IExpr
+              deriving (Eq, Show)
+
 data IExpr = IInt Integer
            | ITrue
            | IFalse
@@ -66,6 +70,7 @@ data IExpr = IInt Integer
            | IClosure Name Arg SymbolTable IExpr -- functions and lambdas
            | ITopLevel IExpr IExpr     -- top level closures followed by first let expr
            | IPrintInt IExpr
+           | IBuiltin IBuiltin
            | Empty
            deriving (Eq,Show)
 
@@ -210,6 +215,11 @@ lambdaLift env expr = case expr of
     PrintInt e -> do
       e' <- lambdaLift env e
       return $ IPrintInt e'
+
+    Builtins e -> 
+        case e of
+            TupFst e1 -> IBuiltin . ITupFst <$> lambdaLift env e1
+            TupSnd e1 -> IBuiltin . ITupSnd <$> lambdaLift env e1
 
     where cleanClosures :: (Name,IR.IExpr) -> Bool
           cleanClosures (name,expr) =
