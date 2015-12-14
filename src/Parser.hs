@@ -58,7 +58,7 @@ apply = Expr.Infix space Expr.AssocLeft
                 <* notFollowedBy (choice . map reservedOp $ ops)
 
 opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
-opTable = [ [apply]
+opTable = [ [apply, prefix "snd" (Builtins . TupFst), prefix "fst" (Builtins . TupSnd)]
           , [ binary "*" Expr.AssocLeft
             , binary "/" Expr.AssocLeft]
           , [ binary "+" Expr.AssocLeft
@@ -141,17 +141,8 @@ prIntExpr = do
     toPrint <- try $ reserved "printInt" *> parens expr
     return $ PrintInt toPrint
 
-tupFst :: Parser DimlExpr
-tupFst = Builtins . TupFst <$> (try (reserved "fst") *> tupleExpr)
- 
-tupSnd :: Parser DimlExpr
-tupSnd = Builtins . TupSnd <$> (try (reserved "snd") *> tupleExpr)
-
 parensExpr :: Parser DimlExpr
 parensExpr = Parens <$> parens expr <*> optionMaybe annot
-
-builtins :: Parser DimlExpr
-builtins = tupFst <|> tupSnd
 
 -- Types: 
 -- int | bool | arrow type type | prod type type
@@ -196,5 +187,4 @@ factor = declExpr
      <|> prIntExpr
      <|> varExpr
      <|> tupleExpr
-     <|> builtins
      <|> parensExpr

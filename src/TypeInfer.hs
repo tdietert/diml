@@ -128,7 +128,7 @@ lookupVarType x = do
   case Map.lookup x env of
       Nothing -> throwError $ UnboundVariable x
       -- gives fresh variable type variables in case of conflicts in env
-      Just s@(Forall env typ) -> instantiate s >>= (\t -> return t)
+      Just s@(Forall env typ) -> instantiate s
 
 -- "local" simply runs a function on the Reader Monad environment and
 --  procduces the new Reader Environment resulting from the function execution
@@ -210,9 +210,8 @@ infer expr =
             tvRet <- fresh
 
             case ann of 
-            	Just ann' -> do 
-            		addConstr tvArg ann'
-            	Nothing -> return ()
+                Just ann' -> addConstr tvArg ann'
+                Nothing -> return ()
 
             -- adds argument to context with type tvArg to infer type of e
             t1 <- extendEnv [(arg, Forall [] tvArg)] (infer e)
@@ -250,17 +249,17 @@ infer expr =
         Parens e1 ann -> do 
             t1 <- infer e1
             case ann of 
-            	Just typ -> addConstr typ t1 >> return t1
+                Just typ -> addConstr typ t1 >> return t1
                 Nothing -> return t1
          
         Builtins e1 -> do
             case e1 of 
                TupFst e -> do
-                   (TProd t1 t2) <- infer e
+                   (TProd t1 t2) <- infer e 
                    return t1
                TupSnd e -> do
-                   (TProd t1 t2) <- infer e
-                   return t2
+                   (TProd t1 t2) <- infer e 
+                   return t2 
  
 -- | Unification algorithm
 

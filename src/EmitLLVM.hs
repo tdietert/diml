@@ -15,6 +15,7 @@ import qualified LLVM.General.AST.Linkage as L
 import qualified LLVM.General.Target as TM
 import qualified LLVM.General.AST.Type as T
 import qualified LLVM.General.AST.Instruction as Inst
+import qualified LLVM.General.ExecutionEngine as EE
 
 import Data.Word
 import Data.Int
@@ -25,6 +26,9 @@ import Control.Applicative
 import Control.Monad.State
 import System.Directory
 import qualified Data.Map as Map
+
+-- JIT compilation
+import Foreign.Ptr ( FunPtr, castFunPtr )
 
 import Codegen
 import IR
@@ -58,8 +62,8 @@ codegenTop (IR.IClosure name arg env body) = do
     
 codegenTop (IR.ILet decl body) = do
     define tVoid "printInt" [(T.i64, AST.UnName 0)] [] L.External
-    define tuple "fst" [(tuple, AST.Name "tuple")] [] L.External
-    define tuple "snd" [(tuple, AST.Name "tuple")] [] L.External
+    define double "fst" [(tuple, AST.Name "tuple")] [] L.External
+    define double "snd" [(tuple, AST.Name "tuple")] [] L.External
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
@@ -207,24 +211,46 @@ compileLlvmModule base irExpr source = do
     mod <- codegen base irExpr
     compile mod source
 
+builtins :: IO File
+builtins = do
+    projectDir <- getCurrentDirectory
+    return . File $ projectDir ++ "/builtins/builtins.ll"
+
+-- | JIT Compilation
+jit :: Context -> (EE.MCJIT -> IO a) -> IO a
+jit c = EE.withMCJIT c optlevel model ptrelim fastins
+  where
+    optlevel = Just 2  -- optimization level
+    model    = Nothing -- code model ( Default )
+    ptrelim  = Nothing -- frame pointer elimination
+    fastins  = Nothing -- fast instruction selection
+
+foreign import ccall "dynamic" haskFun :: FunPtr (IO Double) -> (IO Double)
+
+run :: FunPtr a -> IO Double
+run fn = haskFun (castFunPtr fn :: FunPtr (IO Double))
+
 compile :: AST.Module -> String -> IO ()
 compile mod name =  
     withContext $ \context -> do
-        projectDir <- getCurrentDirectory
-        err <- runExceptT $ withModuleFromLLVMAssembly context (File $ projectDir ++ "/builtins/builtins.ll") $ \builtins -> do
+        builtinFuncs <- builtins
+        err <- runExceptT $ withModuleFromLLVMAssembly context builtinFuncs $ \builtins -> do
             err <- liftM join . runExceptT . withModuleFromAST context mod $ \m -> do
-                      withPassManager passes $ \pm -> do
-                          runPassManager pm m
-                          runExceptT $ linkModules False m builtins
-                          runExceptT $ verify m
-                          let filename = takeWhile (/= '.') name
-                          runExceptT $ writeLLVMAssemblyToFile (File $ filename ++ ".ll") m
-                          moduleLLVMAssembly m
-                          liftM join $ runExceptT $ TM.withHostTargetMachine $ \target -> do
-                              runExceptT $ writeTargetAssemblyToFile target (File $ filename ++ ".s") m
+                withPassManager passes $ \pm -> do
+                    runPassManager pm m
+                    runExceptT $ linkModules False m builtins
+                    runExceptT $ verify m
+                    let filename = takeWhile (/= '.') name
+                    moduleLLVMAssembly m
+                    jit context $ \executionEngine ->
+                       EE.withModuleInEngine executionEngine m $ \ee -> do
+                          mainfn <- EE.getFunction ee (AST.Name "main")
+                          case mainfn of 
+                             Just fn -> run fn >>  return (Right m)
+                             Nothing -> return (Left "Couldn't compile!")
             case err of
                 Left s -> putStr s
                 Right _ -> return ()
         case err of
             Left s -> putStrLn $ show s
-            Right _ -> return ()
+            Right _ -> return () 
