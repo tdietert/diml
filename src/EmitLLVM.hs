@@ -6,12 +6,13 @@ import LLVM.General.Module
 import LLVM.General.Context
 import LLVM.General.PassManager
 import LLVM.General.Analysis
+import LLVM.General.Target
 
 import qualified LLVM.General.AST as AST
 import qualified LLVM.General.AST.Constant as Const
 import qualified LLVM.General.AST.Float as F
 import qualified LLVM.General.AST.FloatingPointPredicate as FP
-import qualified LLVM.General.AST.Linkage as L 
+import qualified LLVM.General.AST.Linkage as L
 import qualified LLVM.General.Target as TM
 import qualified LLVM.General.AST.Type as T
 import qualified LLVM.General.AST.Instruction as Inst
@@ -35,15 +36,21 @@ import IR
 
 -- turn function arg into llvm arg
 toFunArg :: [(Arg,IExpr)] -> [(AST.Type, AST.Name)]
-toFunArg = map (\(name,expr) -> 
-      case expr of 
+toFunArg = map (\(name,expr) ->
+      case expr of
           ITup e1 e2 -> (tuple, AST.Name name)
           otherwise -> (double, AST.Name name)
-    ) 
+    )
 
 ------------------------
 -- Toplevel Codegen
 ------------------------
+
+stdlib :: LLVM ()
+stdlib = do
+    define tVoid "printInt" [(T.i64, AST.UnName 0)] [] L.External
+    define double "fst" [(tuple, AST.Name "tuple")] [] L.External
+    define double "snd" [(tuple, AST.Name "tuple")] [] L.External
 
 codegenTop :: IR.IExpr -> LLVM ()
 codegenTop (IR.ITopLevel e1 e2) = codegenTop e1 >> codegenTop e2
@@ -55,23 +62,20 @@ codegenTop (IR.IClosure name arg env body) = do
               entry <- addBlock entryBlockName
               setBlock entry
               forM fnargs $ \(typ,(AST.Name arg)) -> do
-                  var <- alloca typ               
-                  assign arg var                     
-                  store var (local (AST.Name arg))   
+                  var <- alloca typ
+                  assign arg var
+                  store var (local (AST.Name arg))
               cgen body >>= ret
-    
+
 codegenTop (IR.ILet decl body) = do
-    define tVoid "printInt" [(T.i64, AST.UnName 0)] [] L.External
-    define double "fst" [(tuple, AST.Name "tuple")] [] L.External
-    define double "snd" [(tuple, AST.Name "tuple")] [] L.External
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
-              setBlock entry 
-              case decl of 
-                  IR.Empty -> return emptyVal 
+              setBlock entry
+              case decl of
+                  IR.IUnit -> return nullVal
                   _     -> cgen decl
-              cgen body >>= ret  
+              cgen body >>= ret
 
 -------------------------------------------------------------------------------
 -- Operations
@@ -88,8 +92,8 @@ gt a b = do
   uitofp double test
 
 eq :: AST.Operand -> AST.Operand -> Codegen AST.Operand
-eq a b = do 
-  eqtest <- fcmp FP.OEQ a b 
+eq a b = do
+  eqtest <- fcmp FP.OEQ a b
   uitofp double eqtest
 
 binops :: Map.Map String (AST.Operand -> AST.Operand -> Codegen AST.Operand)
@@ -115,25 +119,25 @@ cgen (IR.ITup e1 e2) = do
     tup <- alloca tuple
     tup' <- load tup
     tup1 <- insertElem e1' tup' 0
-    tup2 <- insertElem e2' tup1 1 
+    tup2 <- insertElem e2' tup1 1
     return tup2
 cgen (IR.IPrintInt n) = do
     intArg <- cgen n
     argToIntType <- fptoui T.i64 intArg
     call (externf (AST.Name "printInt")) [argToIntType]
     return true
-cgen (IR.IApp fun args) = do 
+cgen (IR.IApp fun args) = do
     e <- get
-    largs <- mapM cgen args 
+    largs <- mapM cgen args
     call (externf (AST.Name fun)) largs
-cgen (IR.IEq e1 e2) = do 
+cgen (IR.IEq e1 e2) = do
     a <- cgen e1
     b <- cgen e2
-    fcmp FP.OEQ a b 
+    fcmp FP.OEQ a b
 cgen (IR.IIf cond tru fals) = do
-    -- construct three new blocks 
+    -- construct three new blocks
     ifthen <- addBlock "if.then"
-    ifelse <- addBlock "if.else" 
+    ifelse <- addBlock "if.else"
     ifexit <- addBlock "if.exit"
     -- eval condition
     condval <- cgen cond
@@ -142,16 +146,16 @@ cgen (IR.IIf cond tru fals) = do
     cbr test ifthen ifelse
     -- start ifthen block
     setBlock ifthen
-    trueBrVal <- cgen tru 
+    trueBrVal <- cgen tru
     br ifexit
-    -- get new if then block since nested 
+    -- get new if then block since nested
     -- exprs in rec cgen call may set block
     -- llvm is emitting to
     ifthen <- getBlock
     setBlock ifelse
     falsBrVal <- cgen fals
     br ifexit
-    ifelse <- getBlock 
+    ifelse <- getBlock
     setBlock ifexit
     phi double [(trueBrVal, ifthen), (falsBrVal, ifelse)]
 cgen (IR.IBinOp op a b) = do
@@ -163,21 +167,21 @@ cgen (IR.IBinOp op a b) = do
       Nothing -> error "No such operator"
 cgen (IR.IDec name e) = do
     asgn <- cgen e
-    case e of 
+    case e of
         ITup e1 e2 -> do
             var <- alloca tuple
             assign name var
-            store var asgn 
+            store var asgn
         otherwise -> do
             var <- alloca double
             assign name var
             store var asgn
 cgen (IR.ILet decl body) = do
     cgen decl
-    cgen body  
-cgen (IR.Empty) = return emptyVal
+    cgen body
+cgen (IR.IUnit) = return nullVal
 cgen (IR.IBuiltin e) =
-    case e of 
+    case e of
         ITupFst e' -> cgen $ IR.IApp "fst" [e']
         ITupSnd e' -> cgen $ IR.IApp "snd" [e']
 cgen e = error $ "Failed on lookup " ++ show e ++ " when constructing IR"
@@ -191,66 +195,39 @@ liftError = runExceptT >=> either fail return
 
 codegen :: AST.Module -> IR.IExpr -> IO AST.Module
 codegen mod fn = withContext $ \context ->
-    liftError $ withModuleFromAST context newast $ \m -> do
-        llstr <- moduleLLVMAssembly m
-        putStrLn llstr
-        return newast
-  where
-    modn = codegenTop fn 
-    newast = runLLVM mod modn
-
------------------------------------
---  Compile to .ll file 
------------------------------------
-
-passes :: PassSetSpec
-passes = defaultCuratedPassSetSpec
-
-compileLlvmModule :: AST.Module -> IExpr -> String -> IO ()
-compileLlvmModule base irExpr source = do
-    mod <- codegen base irExpr
-    compile mod source
+   liftError $ withModuleFromAST context newast $ \m -> return newast
+   where modn = codegenTop fn
+         newast = runLLVM mod modn
 
 builtins :: IO File
 builtins = do
     projectDir <- getCurrentDirectory
     return . File $ projectDir ++ "/builtins/builtins.ll"
 
--- | JIT Compilation
-jit :: Context -> (EE.MCJIT -> IO a) -> IO a
-jit c = EE.withMCJIT c optlevel model ptrelim fastins
-  where
-    optlevel = Just 2  -- optimization level
-    model    = Nothing -- code model ( Default )
-    ptrelim  = Nothing -- frame pointer elimination
-    fastins  = Nothing -- fast instruction selection
+linkBuiltins :: AST.Module -> IO AST.Module
+linkBuiltins mod = withContext $ \context -> do
+    builtinFuncs <- builtins
+    err <- runExceptT $ withModuleFromLLVMAssembly context builtinFuncs moduleAST
+    case err of
+        Left errMsg -> putStrLn (show errMsg) >> return (emptyModule "dimlProgram")
+        Right mod' -> return mod'
 
-foreign import ccall "dynamic" haskFun :: FunPtr (IO Double) -> (IO Double)
+makeTargetFilePath :: FilePath -> IO File
+makeTargetFilePath filename = do
+    dir <- getCurrentDirectory
+    return . File $ dir ++ "/" ++ filename ++ ".s"
 
-run :: FunPtr a -> IO Double
-run fn = haskFun (castFunPtr fn :: FunPtr (IO Double))
-
-compile :: AST.Module -> String -> IO ()
-compile mod name =  
+compileFile :: AST.Module -> String -> IO ()
+compileFile mod name = do
+    let filename = takeWhile (/= '.') name
     withContext $ \context -> do
-        builtinFuncs <- builtins
-        err <- runExceptT $ withModuleFromLLVMAssembly context builtinFuncs $ \builtins -> do
-            err <- liftM join . runExceptT . withModuleFromAST context mod $ \m -> do
-                withPassManager passes $ \pm -> do
-                    runPassManager pm m
-                    runExceptT $ linkModules False m builtins
+        err <- liftM join . runExceptT . withModuleFromAST context mod $ \m -> do
+            runExceptT $ withHostTargetMachine $ \tm -> do
+                withPassManager defaultCuratedPassSetSpec $ \pm -> do
+                    filepath <- makeTargetFilePath filename
                     runExceptT $ verify m
-                    let filename = takeWhile (/= '.') name
-                    moduleLLVMAssembly m
-                    jit context $ \executionEngine ->
-                       EE.withModuleInEngine executionEngine m $ \ee -> do
-                          mainfn <- EE.getFunction ee (AST.Name "main")
-                          case mainfn of 
-                             Just fn -> run fn >>  return (Right m)
-                             Nothing -> return (Left "Couldn't compile!")
-            case err of
-                Left s -> putStr s
-                Right _ -> return ()
+                    runPassManager pm m
+                    runExceptT $ writeTargetAssemblyToFile tm filepath m
         case err of
             Left s -> putStrLn $ show s
-            Right _ -> return () 
+            Right _ -> return ()

@@ -17,11 +17,14 @@ type Name = String
 data TVar = TV String
     deriving (Eq, Ord, Show)
 
-data Type 
-    = TVar TVar
+data Type
+    = Unit
+    | TVar TVar
     | TCon String
     | TArr Type Type
     | TProd Type Type
+--  | TSum Type Type
+--  | TRec TVar Type
     deriving (Eq, Ord, Show)
 
 data Scheme = Forall [TVar] Type

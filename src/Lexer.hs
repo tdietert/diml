@@ -1,23 +1,23 @@
 module Lexer where
 
-import Text.Parsec.String 
+import Text.Parsec.String
 import Text.Parsec.Language
 import Text.ParserCombinators.Parsec hiding (spaces)
 
 import qualified Text.Parsec.Token as Token
 
 ops :: [String]
-ops = words "-> + - * \\ = < <= > >= ; : \\n ,"
+ops = words "() -> + - * \\ = < <= > >= ; : ,"
 
 keyWords :: [String]
-keyWords = words "fst snd true false fun if then else let in Int Bool printInt"
+keyWords = words "fst snd true false fun if then else let in Int Bool Unit printInt"
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser style
-  where style = emptyDef { 
+  where style = emptyDef {
                   Token.identStart = letter
                 , Token.identLetter = alphaNum <|> char '_'
-                , Token.reservedNames = keyWords 
+                , Token.reservedNames = keyWords
                 , Token.reservedOpNames = ops
                 , Token.commentStart = "(*"
                 , Token.commentEnd = "*)"

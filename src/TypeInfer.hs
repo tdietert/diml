@@ -20,10 +20,10 @@ data TypeError
   = UnificationFail Type Type
   | InfiniteType TVar Type
   | UnboundVariable String
-  | UnificationMismatch [Type] [Type] 
+  | UnificationMismatch [Type] [Type]
   | Unallowed
   deriving (Show)
-  
+
 -- | Inference monad
 type Infer a = (RWST
                   TypeEnv         -- Typing environment
@@ -44,20 +44,20 @@ runInfer :: TypeEnv -> Infer Type -> Either TypeError (Type, [Constraint])
 runInfer env m = runExcept $ evalRWST m env initInfer
 
 inferExpr :: TypeEnv -> DimlExpr -> Either TypeError Scheme
-inferExpr env exp = 
+inferExpr env exp =
     case runInfer env (infer exp) of
         Left err -> Left err
         Right (typ,constrs) ->
-            case runSolver constrs of 
+            case runSolver constrs of
                 Left err -> Left err
                 Right sub -> Right $ generalize empty (apply sub typ)
 
 -- | Return the internal constraints used in solving for the type of an expression
 constraintsExpr :: TypeEnv -> DimlExpr -> Either TypeError ([Constraint], Subst, Type, Scheme)
-constraintsExpr env exp = 
+constraintsExpr env exp =
     case runInfer env (infer exp) of
         Left err -> Left err
-        Right (typ,constrs) -> 
+        Right (typ,constrs) ->
             case runSolver constrs of
                 Left err -> Left err
                 Right sub -> Right (constrs,sub,typ,generalize empty (apply sub typ))
@@ -104,7 +104,7 @@ instance Substitutable TypeEnv where
 typevars :: [String]
 typevars = [1..] >>= flip replicateM ['a'..'z']
 
--- | Instantiation is the notion of giving fresh type variables to 
+-- | Instantiation is the notion of giving fresh type variables to
 -- |     all variables in a given type scheme. This makes sure that when
 -- |     looking up the type of a variable in a given environment
 -- |     there are no type clashes. Maybe a bad idea?
@@ -115,7 +115,7 @@ instantiate (Forall as t) = do
     let s = Subst $ Map.fromList (zip as as')
     return $ apply s t
 
--- | generalizing a type with respect to a given type env is akin to quantifying 
+-- | generalizing a type with respect to a given type env is akin to quantifying
 -- | the type variables that are free in type 't' but not in the type env
 generalize :: TypeEnv -> Type -> Scheme
 generalize env t = Forall as t
@@ -132,18 +132,18 @@ lookupVarType x = do
 
 -- "local" simply runs a function on the Reader Monad environment and
 --  procduces the new Reader Environment resulting from the function execution
-extendEnv :: [(Name, Scheme)] -> Infer a -> Infer a 
-extendEnv schemes m = do 
+extendEnv :: [(Name, Scheme)] -> Infer a -> Infer a
+extendEnv schemes m = do
     -- remove occurence of x from env, replace with new type
     let extEnv [] e = e
-        extEnv ((x,sc):rest) e = extEnv rest newCtxt 
+        extEnv ((x,sc):rest) e = extEnv rest newCtxt
             where newCtxt = (e `remove` x) `extend` (x,sc)
     local (extEnv schemes) m
 
 -- | Gives a fresh type variable
 fresh :: Infer Type
-fresh = do 
-    st <- get 
+fresh = do
+    st <- get
     modify (\s -> s { count = count st + 1})
     return . TVar $ TV (typevars !! count st)
 
@@ -164,12 +164,13 @@ opTypes = Map.fromList [
 infer :: DimlExpr -> Infer Type
 infer expr =
     case expr of
+        Lit (DUnit) -> return Unit
         Lit (DInt _) -> return tInt
         Lit (DFalse) -> return tBool
-        Lit (DTrue)  -> return tBool 
+        Lit (DTrue)  -> return tBool
         Var x        -> lookupVarType x
 
-        BinOp op e1 e2 -> do 
+        BinOp op e1 e2 -> do
             t1 <- infer e1
             t2 <- infer e2
             tv <- fresh
@@ -182,7 +183,7 @@ infer expr =
             t1 <- infer e1
             t2 <- infer e2
             let tupType = TProd t1 t2
-            case ann of 
+            case ann of
                 Just ann' -> do
                     addConstr ann' tupType
                 Nothing -> return ()
@@ -209,7 +210,7 @@ infer expr =
             tvArg <- fresh
             tvRet <- fresh
 
-            case ann of 
+            case ann of
                 Just ann' -> addConstr tvArg ann'
                 Nothing -> return ()
 
@@ -219,7 +220,7 @@ infer expr =
             return $ TArr tvArg tvRet
 
         -- fix:
-        -- | believe the programmer, make type annots 
+        -- | believe the programmer, make type annots
         -- | influence the type inference here.
         Fun fname arg argAnn retAnn body -> do
             tvArg <- fresh
@@ -229,38 +230,38 @@ infer expr =
             bodyType <- extendEnv [(fname,funSch),(arg,argSch)] (infer body)
             addConstr bodyType tvRet
             return $ TArr tvArg bodyType
-        
-        Let (Decl x e1) body -> do 
+
+        Let (Decl x e1) body -> do
             t1 <- infer e1
             bodyType <- extendEnv [(x, Forall [] t1)] $ infer body
-            return bodyType 
+            return bodyType
         Let fun@(Fun fname _ _ _ _) body -> do
             env <- ask
             funType <- infer fun
             let scheme = generalize env funType
             bodyType <- extendEnv [(fname, scheme)] $ infer body
             return bodyType
-        
+
         PrintInt e1    -> do
             t1 <- infer e1
             addConstr t1 tInt
             return tInt
 
-        Parens e1 ann -> do 
+        Parens e1 ann -> do
             t1 <- infer e1
-            case ann of 
+            case ann of
                 Just typ -> addConstr typ t1 >> return t1
                 Nothing -> return t1
-         
+
         Builtins e1 -> do
-            case e1 of 
+            case e1 of
                TupFst e -> do
-                   (TProd t1 t2) <- infer e 
+                   (TProd t1 t2) <- infer e
                    return t1
                TupSnd e -> do
-                   (TProd t1 t2) <- infer e 
-                   return t2 
- 
+                   (TProd t1 t2) <- infer e
+                   return t2
+
 -- | Unification algorithm
 
 -- Solver carries around "unifier", a tuple of the current substitution
@@ -270,7 +271,7 @@ infer expr =
 -- which produces a [Constraint] and Type as output
 type Constraint = (Type,Type)
 type Unifier = (Subst,[Constraint])
-type Solver = ExceptT TypeError Identity 
+type Solver = ExceptT TypeError Identity
 
 runSolver :: [Constraint] -> Either TypeError Subst
 runSolver cs = runIdentity $ runExceptT $ solve (emptySubst,cs)
@@ -286,16 +287,16 @@ composeSubs (Subst s1) (Subst s2) = Subst $ (Map.map (apply $ Subst s1) s2) `Map
 
 unify :: Type -> Type -> Solver Unifier
 unify (TVar v) t = bindTVar v t
-unify t (TVar v) = bindTVar v t 
+unify t (TVar v) = bindTVar v t
 unify (TArr t1 t2) (TArr t1' t2') = return $ (emptySubst, [(t1,t1'),(t2,t2')])
-unify t1 t2 
+unify t1 t2
     | t1 == t2 = return (emptySubst, [])
     | otherwise = throwError $ UnificationFail t1 t2
 
 bindTVar :: TVar -> Type -> Solver Unifier
-bindTVar a t 
+bindTVar a t
     | occursCheck a t = throwError $ InfiniteType a t
-    | otherwise = return $ (Subst (Map.singleton a t),[]) 
+    | otherwise = return $ (Subst (Map.singleton a t),[])
 
 solve :: Unifier -> Solver Subst
 solve (sub,[]) = return sub
@@ -303,5 +304,5 @@ solve (sub,((t1,t2):cs)) = do
     (newSub,constr) <- unify t1 t2
     solve (newSub `composeSubs` sub, constr ++ apply newSub cs)
 
-occursCheck :: (Substitutable a) => TVar -> a -> Bool 
+occursCheck :: (Substitutable a) => TVar -> a -> Bool
 occursCheck x s = x `Set.member` ftv s

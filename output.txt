@@ -1,0 +1,30 @@
+; ModuleID = '/home/tdietert/Documents/github/dimlCompiler/builtins/builtins.ll'
+
+@.fmti = private unnamed_addr constant [3 x i8] c"%d\00"
+
+; Function Attrs: nounwind
+declare i32 @printf(i8* noalias nocapture readonly, ...) #0
+
+; Function Attrs: nounwind readnone
+define double @fst([2 x double] %tuple) #1 {
+entry:
+  %0 = extractvalue [2 x double] %tuple, 0
+  ret double %0
+}
+
+; Function Attrs: nounwind readnone
+define double @snd([2 x double] %tuple) #1 {
+entry:
+  %0 = extractvalue [2 x double] %tuple, 1
+  ret double %0
+}
+
+; Function Attrs: nounwind
+define void @printInt(i64 %this) #0 {
+  %call = tail call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([3 x i8]* @.fmti, i32 0, i32 0), i64 %this)
+  ret void
+}
+
+attributes #0 = { nounwind }
+attributes #1 = { nounwind readnone }
+

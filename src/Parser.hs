@@ -2,14 +2,14 @@ module Parser where
 
 import Text.Parsec
 import Text.Parsec.String (Parser)
-import Text.Parsec.Language 
+import Text.Parsec.Language
 import qualified Text.Parsec.Expr as Expr
 
 import Control.Applicative hiding (many, (<|>))
 import Data.Functor.Identity
 import System.IO
 
-import Lexer 
+import Lexer
 import Syntax
 import Type
 
@@ -26,8 +26,8 @@ contents p = whitespace *> p
 topLevel :: Parser [DimlExpr]
 topLevel = many1 $ do
    e <- expr <* reservedOp ";"
-   return e 
- 
+   return e
+
 -- parses file
 parseFile :: String -> IO ()
 parseFile filename = do
@@ -53,36 +53,42 @@ prefix name label = Expr.Prefix (reservedOp name *> return (\x -> label x))
 
 apply :: Expr.Operator String () Data.Functor.Identity.Identity DimlExpr
 apply = Expr.Infix space Expr.AssocLeft
-    where space = Apply 
+    where space = Apply
                 <$ whitespace
                 <* notFollowedBy (choice . map reservedOp $ ops)
 
+builtins :: [Expr.Operator String () Data.Functor.Identity.Identity DimlExpr]
+builtins = [ prefix "fst" (Builtins . TupFst), prefix "snd" (Builtins . TupSnd) ]
+
 opTable :: Expr.OperatorTable String () Data.Functor.Identity.Identity DimlExpr
-opTable = [ [apply, prefix "snd" (Builtins . TupFst), prefix "fst" (Builtins . TupSnd)]
+opTable = [ [apply]
+          , builtins
           , [ binary "*" Expr.AssocLeft
             , binary "/" Expr.AssocLeft]
           , [ binary "+" Expr.AssocLeft
             , binary "-" Expr.AssocLeft ]
           , [ binary "<" Expr.AssocLeft
-            , binary ">" Expr.AssocLeft 
-            , binary "==" Expr.AssocLeft ] 
-        ]      
+            , binary ">" Expr.AssocLeft
+            , binary "==" Expr.AssocLeft ]
+        ]
 
--- add "annot" to all exprs as last field. see intExpr
 annot :: Parser Type
 annot = reservedOp ":" *> typeExpr
 
 expr :: Parser DimlExpr
 expr = Expr.buildExpressionParser opTable factor
 
+unitExpr :: Parser DimlExpr
+unitExpr = Lit DUnit <$ try (reservedOp "()")
+
 intExpr :: Parser DimlExpr
 intExpr = Lit . DInt <$> integer
 
 varExpr :: Parser DimlExpr
-varExpr = Var <$> identifier 
+varExpr = Var <$> identifier
 
 boolExpr :: Parser DimlExpr
-boolExpr =  Lit DTrue <$ reserved "true" 
+boolExpr =  Lit DTrue <$ reserved "true"
         <|> Lit DFalse <$ reserved "false"
 
 funExpr :: Parser DimlExpr
@@ -96,12 +102,12 @@ funExpr = do
     retTyp <- optionMaybe annot
     reservedOp "="
     body <- expr
-    return $ Fun name arg argTyp retTyp body 
+    return $ Fun name arg argTyp retTyp body
 
 lamExpr :: Parser DimlExpr
 lamExpr = Lam <$> try arg <*> optionMaybe annot <*> body
     where arg  = reservedOp "\\" *> identifier
-          body = reservedOp "->" *> expr 
+          body = reservedOp "->" *> expr
 
 ifExpr :: Parser DimlExpr
 ifExpr = If <$> try e1 <*> e2 <*> e3
@@ -111,9 +117,9 @@ ifExpr = If <$> try e1 <*> e2 <*> e3
 
 -- explicitly a pair: (x,y)
 tupleExpr :: Parser DimlExpr
-tupleExpr = do 
-    e1 <- try $ reservedOp "(" *> expr <* reservedOp "," 
-    e2 <- expr <* reservedOp ")" 
+tupleExpr = do
+    e1 <- try $ reservedOp "(" *> expr <* reservedOp ","
+    e2 <- expr <* reservedOp ")"
     ann <- optionMaybe annot
     return $ Tuple e1 e2 ann
 
@@ -134,7 +140,7 @@ declExpr :: Parser DimlExpr
 declExpr = do
     var <- try $ identifier <* reservedOp "="
     varAsgnmt <- expr
-    return $ Decl var varAsgnmt 
+    return $ Decl var varAsgnmt
 
 prIntExpr :: Parser DimlExpr
 prIntExpr = do
@@ -144,47 +150,54 @@ prIntExpr = do
 parensExpr :: Parser DimlExpr
 parensExpr = Parens <$> parens expr <*> optionMaybe annot
 
--- Types: 
+-- Types:
 -- int | bool | arrow type type | prod type type
 -------------------------------
+unitType :: Parser Type
+unitType = Unit <$ reserved "Unit"
+
 boolType :: Parser Type
-boolType = tBool <$ reserved "Bool" 
+boolType = tBool <$ reserved "Bool"
 
 intType :: Parser Type
 intType = tInt <$ reserved "Int"
 
 prodType :: Parser Type
 prodType = do
-    t1 <- char '(' *> typeExpr
-    t2 <- char ',' *> typeExpr <* char ')'
+    char '(' >> whitespace
+    t1 <- typeExpr
+    reservedOp ","
+    t2 <- typeExpr
+    char ')' >> whitespace
     return $ TProd t1 t2
 
--- right associative type 
+-- right associative type
 arrowType :: Parser Type
 arrowType = tTypeExpr `chainr1` arrow
-    where arrow = TArr <$ reservedOp "->" 
+    where arrow = TArr <$ reservedOp "->"
 
 -- base type exprs
 tTypeExpr :: Parser Type
-tTypeExpr =  boolType 
+tTypeExpr =  boolType
          <|> prodType
-         <|> intType 
+         <|> intType
+         <|> unitType
 
 typeExpr :: Parser Type
-typeExpr =  try arrowType 
-        <|> tTypeExpr 
+typeExpr =  try arrowType
+        <|> tTypeExpr
         <|> parens tTypeExpr
--------------------------------
 
 factor :: Parser DimlExpr
-factor = declExpr
-     <|> funExpr
-     <|> lamExpr
-     <|> boolExpr
-     <|> ifExpr
-     <|> letExpr
-     <|> intExpr
-     <|> prIntExpr
-     <|> varExpr
-     <|> tupleExpr
-     <|> parensExpr
+factor =  declExpr
+      <|> funExpr
+      <|> lamExpr
+      <|> boolExpr
+      <|> ifExpr
+      <|> letExpr
+      <|> intExpr
+      <|> prIntExpr
+      <|> varExpr
+      <|> tupleExpr
+      <|> unitExpr
+      <|> parensExpr

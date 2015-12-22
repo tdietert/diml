@@ -16,6 +16,13 @@ The project is in a semi-final state, where I have completed my thesis, but have
 
 > diML> *enter code here*
 
+#####File Compilation:
+> $ stack exec dimlCompiler <nameOfFile>
+
+> $ gcc <nameOfFile>.s -o <outfile>
+
+> $ ./<outfile>
+
 This will run the repl for the language and you can write expressions that will be evaluated very similar to the way ghci runs code. The repl takes single line exprs and displays the codegen result of the expression entered. The environment is preserved with the help of the function "procLlvmModule" and an InputT monad transformer in conjunction with the haskeline package, so that when a sequence of expressions is entered into the repl, the variables defined in an expression are in context when evaluating subsequent expressions.
 
 
