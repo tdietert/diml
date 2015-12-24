@@ -289,7 +289,7 @@ insertElem :: Operand -> Operand -> Integer -> Codegen Operand
 insertElem e vec loc = instr $ Inst.InsertElement vec e (int loc) []
 
 extractElem :: Operand -> Integer -> Codegen Operand
-extractElem vec loc = instr $ Inst.ExtractElement vec (int loc) []
+extractElem vec loc = instr $ Inst.ExtractElement vec (int32 loc) []
 
 -- allocates memory for a variable
 alloca :: Type -> Codegen Operand
@@ -330,6 +330,12 @@ int = cons . Const.Float . F.Double . fromIntegral
 
 one :: AST.Operand 
 one = cons $ Const.Int (fromIntegral 1) 32
+
+zero :: AST.Operand
+zero = cons $ Const.Int (fromIntegral 0) 32
+
+int32 :: (Integral a) => a ->  AST.Operand
+int32 n = cons $ Const.Int 32 (fromIntegral n) 
 
 emptyVal :: AST.Operand
 emptyVal = cons $ Const.Null double
