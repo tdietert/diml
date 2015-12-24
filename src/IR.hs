@@ -14,7 +14,7 @@ type SymbolTable = [(Name,IExpr)]
 type Arg = String
 type Names = Map.Map String Int
 
-data EnvState  
+data EnvState
   = EnvState {
     symtab :: SymbolTable
   , names :: Names
@@ -30,9 +30,9 @@ newtype Env a = Env { runEnv :: State EnvState a }
 -- Utility
 ------------
 uniqueName :: String -> Env String
-uniqueName name = do 
+uniqueName name = do
   (EnvState _ nms nmMap) <- get
-  case Map.lookup name nms of  
+  case Map.lookup name nms of
     Nothing -> do
         modify $ \s -> s { names = Map.insert name 1 nms }  -- if name exists, add name to Names
         return name
@@ -48,9 +48,13 @@ lookupVarName var = do
         Nothing -> return var
 
 --------------------------------------------------
--- Lambda Lifting (probably easier than I make it)
+-- Lambda Lifting:
 --     defines another IR AST with lambda Lifts
 --------------------------------------------------
+data IBuiltin = ITupFst IExpr
+              | ITupSnd IExpr
+              deriving (Eq, Show)
+
 data IExpr = IInt Integer
            | ITrue
            | IFalse
@@ -66,7 +70,8 @@ data IExpr = IInt Integer
            | IClosure Name Arg SymbolTable IExpr -- functions and lambdas
            | ITopLevel IExpr IExpr     -- top level closures followed by first let expr
            | IPrintInt IExpr
-           | Empty
+           | IBuiltin IBuiltin
+           | IUnit
            deriving (Eq,Show)
 
 ------------------------------------------
@@ -80,25 +85,26 @@ runLLTree m =  runState (runEnv m) emptyLLTree
 
 getClosures :: EnvState -> [IExpr]
 getClosures es = foldl collectClosures [] env
-    where env = symtab es 
+    where env = symtab es
           collectClosures clsrs (name,f@(IClosure _ _ _ _)) = f:clsrs
-          collectClosures clsrs _ = clsrs 
+          collectClosures clsrs _ = clsrs
 
 buildIRTree :: DimlExpr -> IExpr
-buildIRTree dimlExpr =  
-    case getClosures closures of 
+buildIRTree dimlExpr =
+    case getClosures closures of
         -- add toplevel let env to end of function(closure) declarations
         (c:cs) -> foldl ITopLevel c $ cs++[prgm]
         []     -> prgm
-    where (prgm, closures) = runLLTree $ lambdaLift (return Empty) dimlExpr
+    where (prgm, closures) = runLLTree $ lambdaLift (return IUnit) dimlExpr
 
 -------------------------------------------
 
--- lambda lifting ignores type annotations because 
+-- lambda lifting ignores type annotations because
 -- type inference is run before lambda lifting
 lambdaLift :: Env IExpr -> DimlExpr -> Env IExpr
 lambdaLift env expr = case expr of
-    Lit x -> case x of 
+    Lit x -> case x of
+                 DUnit -> return IUnit
                  DTrue -> return $ ITrue
                  DFalse -> return $ IFalse
                  DInt n -> return $ IInt n
@@ -125,7 +131,7 @@ lambdaLift env expr = case expr of
     Decl name e -> do
         e' <- lambdaLift env e
         nmMap <- gets nameMap
-        ctxt <- gets symtab 
+        ctxt <- gets symtab
         newName <- uniqueName name
         case e' of
             lam@(IClosure lamName _ _ _) -> do
@@ -136,38 +142,38 @@ lambdaLift env expr = case expr of
             otherwise -> do
                 modify $ \s -> s {
                    symtab = (newName,e') :  ctxt
-                 , nameMap = (name,newName) : nmMap 
+                 , nameMap = (name,newName) : nmMap
                 }
-                return $ IDec newName e' 
+                return $ IDec newName e'
 
     Let decl body -> do
         decl' <- lambdaLift env decl
         body' <- lambdaLift (return decl') body
         sytb <- gets symtab
         case decl' of
-            (IClosure name _ _ _) -> return $ ILet Empty body'
-            otherwise -> return $ ILet decl' body'      
+            (IClosure name _ _ _) -> return $ ILet IUnit body'
+            otherwise -> return $ ILet decl' body'
 
     Lam arg _ body -> do
         nms <- gets names
-        lamName <- uniqueName "lambda" 
+        lamName <- uniqueName "lambda"
         ctxt <- gets (filter cleanClosures . symtab)
         lBody <- lambdaLift env body
         let lClos = IClosure lamName arg ctxt lBody
-        modify $ \s -> s { 
+        modify $ \s -> s {
             symtab = (lamName,lClos) : ctxt
         }
         return lClos
 
     Fun fName arg _ _ body -> do
-        (EnvState ctxt nms nmMap) <- get 
-        newArgName <- uniqueName arg 
+        (EnvState ctxt nms nmMap) <- get
+        newArgName <- uniqueName arg
         newFName <- uniqueName fName
         -- all closures are top level, don't need to keep in env
         let fCtxt = filter cleanClosures ctxt
-            tmpClos = IClosure newFName newArgName fCtxt Empty
+            tmpClos = IClosure newFName newArgName fCtxt IUnit
         -- add func and arg to nameMap for lexical scoping
-        modify $ \s -> s { 
+        modify $ \s -> s {
             symtab = (newFName, tmpClos) : ctxt
           , nameMap = (fName,newFName) : (arg,newArgName) : nmMap
         }
@@ -181,19 +187,19 @@ lambdaLift env expr = case expr of
         -- lambda lifting the body of the function (e.g. nested let expr)
         case tailSymTab of
             (s:syms) -> do
-                modify $ \s -> s { 
+                modify $ \s -> s {
                    symtab = headSymTab ++ (newFName,fClos) : syms,
                    nameMap = (fName,newFName) : nmMap
                 }
                 return fClos
-            [] -> do 
-                modify $ \s -> s { 
+            [] -> do
+                modify $ \s -> s {
                    symtab = headSymTab ++ [(newFName,fClos)],
                    nameMap = (fName,newFName) : nmMap
                 }
                 return fClos
-                 
- 
+
+
     Apply f arg -> do
         (IVar fun) <- lambdaLift env f
         sytb <- gets symtab
@@ -206,10 +212,15 @@ lambdaLift env expr = case expr of
             Nothing -> error $ "looking up " ++ show fun ++ " in " ++ show sytb
 
     Parens e _ -> lambdaLift env e
-   
+
     PrintInt e -> do
       e' <- lambdaLift env e
       return $ IPrintInt e'
+
+    Builtins e ->
+        case e of
+            TupFst e1 -> IBuiltin . ITupFst <$> lambdaLift env e1
+            TupSnd e1 -> IBuiltin . ITupSnd <$> lambdaLift env e1
 
     where cleanClosures :: (Name,IR.IExpr) -> Bool
           cleanClosures (name,expr) =

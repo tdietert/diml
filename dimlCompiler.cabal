@@ -29,7 +29,7 @@ library
 executable dimlCompiler
   hs-source-dirs:      src
   main-is:             Main.hs
-  other-modules:       IR,Syntax,TypeInfer,Lexer,Parser,Codegen,EmitLLVM,Type
+  other-modules:       JIT,IR,Syntax,TypeInfer,Lexer,Parser,Codegen,EmitLLVM,Type
   default-language:    Haskell2010 
   build-depends:       base >= 4.7 && < 5,
                        parsec,

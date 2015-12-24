@@ -1,7 +1,7 @@
 ## diML Compiler (diminished ML)
 
 ##### Compiler in progress for my Honor's Thesis, Summer/Fall 2015
-Currently, the lexing and parsing, type checking, and evalution (to check parser) functions are written. Code generation with LLVM (using Stephen Diehl's nice tutorial <http://dev.stephendiehl.com/fun/WYAH.pdf> as a guide) is currently in progress.
+The project is in a semi-final state, where I have completed my thesis, but have much more to add/experiment with. The thesis covering the implementation of this Compiler is found in the file 'diML_Thesis.pdf.' This compiler uses Parsec for lexing, parsing, and AST generation. The two modules Typecheck.hs and TypeInfer.hs handle the typechecking (though TypeInfer.hs subsumes Typecheck.hs). Code generation targets LLVM IR using the llvm-general and llvm-general-pure libraries (Haskell bindings to call C++ LLVM functions) with the help of Stephen Diehl's tutorial <http://dev.stephendiehl.com/fun/WYAH.pdf>. 
 
 
 #####Build Instructions:
@@ -16,6 +16,13 @@ Currently, the lexing and parsing, type checking, and evalution (to check parser
 
 > diML> *enter code here*
 
+#####File Compilation:
+> $ stack exec dimlCompiler <nameOfFile>
+
+> $ gcc \<nameOfFile\>.s -o \<outfile\>
+
+> $ ./\<outfile\>
+
 This will run the repl for the language and you can write expressions that will be evaluated very similar to the way ghci runs code. The repl takes single line exprs and displays the codegen result of the expression entered. The environment is preserved with the help of the function "procLlvmModule" and an InputT monad transformer in conjunction with the haskeline package, so that when a sequence of expressions is entered into the repl, the variables defined in an expression are in context when evaluating subsequent expressions.
 
 
@@ -23,13 +30,15 @@ Since Haskell lends itself to expressing CFGs with algebraic data types, here is
 ```haskell
 
 type Name = String
+type Annot = Maybe Type
 
 -- | Types
 data TVar = TV String
     deriving (Eq, Ord, Show)
 
 data Type 
-    = TVar TVar
+    = Unit
+    | TVar TVar
     | TCon String
     | TArr Type Type
     | TProd Type Type
@@ -38,26 +47,33 @@ data Type
 data Scheme = Forall [TVar] Type
     deriving (Show)
 
--- | Diml Expressions
-data DLit 
-    = DTrue
+data DLit
+    = DUnit
+    | DTrue
     | DFalse
     | DInt Integer
   deriving (Eq, Ord, Show)
 
-data DimlExpr 
+data Builtins
+    = TupFst DimlExpr
+    | TupSnd DimlExpr
+  deriving (Eq, Ord, Show)
+
+data DimlExpr
     = Lit DLit
     | Var Name
-    | BinOp Name DimlExpr DimlExpr 
-    | Lam Name DimlExpr
-    | Fun Name Name DimlExpr        -- (name : T1) : T2 body-- Diml Expression Definition    
+    | BinOp Name DimlExpr DimlExpr
+    | Lam Name Annot DimlExpr
+    | Fun Name Name Annot Annot DimlExpr       -- (name : T1) : T2 body-- Diml Expression Definition
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
-    | Decl Name DimlExpr            -- helper expr for multi declaration letexprs
-    | Let [DimlExpr] DimlExpr 
-    | Tuple DimlExpr DimlExpr
+    | Decl Name DimlExpr             -- helper expr for multi declaration letexprs
+    | Let DimlExpr DimlExpr
+    | Tuple DimlExpr DimlExpr Annot
+    | Parens DimlExpr Annot
     | PrintInt DimlExpr
-  deriving (Eq, Ord, Show)
+    | Builtins Builtins
+   deriving (Eq, Ord, Show)
 ```
 
 #####Note:
@@ -68,15 +84,16 @@ Type inference is fully implemented. Will do some minor tweaks to first IR and t
 **To Do:**
 - ~~Code-Gen to LLVM~~
 - ~~Lambda Lift Trasformation~~
-- ~~Type Inference (Hindley-Milner)~~ (96% needs testing)
+- ~~Type Inference (Hindley-Milner)~~ 
+- ~~Change let exprs in DimlExpr definition~~
+- ~~File compilation to host machine assembly~~
 - Pretty Printing
-- Change let exprs in DimlExpr definition
 - Pattern Matching
 
 
 **New Exprs (after base llvm codegen is added):**
-
-- Case Expressions
+- Sum Types (InL / InR exprs, case expressions)
+- Recursive Types, Lists
 - References (Arrays too?)
 - Objects (sub-typing)
 
@@ -217,4 +234,5 @@ entry:
   %6 = call double @lambda(double %5)
   %7 = fadd double %4, %6
   ret double %7
-}```
+}
+```

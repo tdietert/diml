@@ -44,8 +44,13 @@ addDefn d = do
   modify $ \s -> s { moduleDefinitions = defs ++ [d] }
 
 define ::  Type -> String -> [(Type, Name)] -> [BasicBlock] -> L.Linkage -> LLVM ()
-define retty label argtys body linkage = addDefn $
-  GlobalDefinition $ functionDefaults {
+define retty label argtys body linkage = do
+  defs <- gets moduleDefinitions
+  modify $ \s -> s {
+      -- removes last "main" function so repl executes most recently input expr
+      moduleDefinitions = filter (\(GlobalDefinition def) -> (name def) /= (Name "main")) $ defs
+  }
+  addDefn . GlobalDefinition $ functionDefaults {
     linkage     = linkage
   , name        = Name label
   , parameters  = ([Parameter ty nm [] | (ty, nm) <- argtys], False)
@@ -71,7 +76,7 @@ double :: Type
 double = FloatingPointType 64 IEEE
 
 tuple :: Type
-tuple = VectorType 2 double
+tuple = ArrayType 2 double
 
 retType :: Type
 retType = T.i32
@@ -90,7 +95,7 @@ type Names = Map.Map String Int
 
 uniqueName :: String -> Names -> (String, Names)
 uniqueName nm ns =
-  case Map.lookup nm ns of  
+  case Map.lookup nm ns of
     Nothing -> (nm,  Map.insert nm 1 ns)  -- if name exists, add name to Names
     Just ix -> (nm ++ show ix, Map.insert nm (ix+1) ns) -- else add name "name#vars"
 
@@ -152,7 +157,6 @@ emptyCodegen = CodegenState (Name entryBlockName) Map.empty [] 1 0 Map.empty
 execCodegen :: Codegen a -> CodegenState
 execCodegen m = execState (runCodegen m) emptyCodegen
 
--- gets fresh name (so not to reuse func or var names in llvm code)
 fresh :: Codegen Word
 fresh = do
     i <- gets count
@@ -235,7 +239,7 @@ getvar var = do
         Nothing -> error $ "could not find " ++ var ++ "  in " ++ show syms
 
 getfunc :: String -> Codegen Operand
-getfunc fName = return (externf $ AST.Name fName)  
+getfunc fName = return (externf $ AST.Name fName)
 
 -------------------------------------------------------------------------------
 
@@ -275,7 +279,7 @@ uitofp :: Type -> Operand -> Codegen Operand
 uitofp ty a = instr $ UIToFP a ty []
 
 fptoui :: Type -> Operand -> Codegen Operand
-fptoui ty a = instr $ FPToSI a ty [] 
+fptoui ty a = instr $ FPToSI a ty []
 
 toArgs :: [Operand] -> [(Operand, [A.ParameterAttribute])]
 toArgs = map (\x -> (x, []))
@@ -286,10 +290,10 @@ call fn args = instr $ Call False CC.C [] (Right fn) (toArgs args) [] []
 
 -- Inserts elem into vector
 insertElem :: Operand -> Operand -> Integer -> Codegen Operand
-insertElem e vec loc = instr $ Inst.InsertElement vec e (int loc) []
+insertElem e vec loc = instr $ Inst.InsertValue vec e [fromIntegral loc] []
 
 extractElem :: Operand -> Integer -> Codegen Operand
-extractElem vec loc = instr $ Inst.ExtractElement vec (int32 loc) []
+extractElem vec loc = instr $ Inst.ExtractValue vec [fromIntegral loc] []
 
 -- allocates memory for a variable
 alloca :: Type -> Codegen Operand
@@ -313,7 +317,7 @@ ret :: Operand -> Codegen (Named Terminator)
 ret val = terminator $ Do $ Ret (Just val) []
 
 phi :: Type -> [(Operand, Name)] -> Codegen Operand
-phi typ brs = instr $ Phi typ brs [] 
+phi typ brs = instr $ Phi typ brs []
 
 ------------------------
 -- Constant Operands
@@ -328,14 +332,11 @@ true = cons $ Const.Float (F.Double 1)
 int :: Integer -> AST.Operand
 int = cons . Const.Float . F.Double . fromIntegral
 
-one :: AST.Operand 
+one :: AST.Operand
 one = cons $ Const.Int (fromIntegral 1) 32
 
-zero :: AST.Operand
-zero = cons $ Const.Int (fromIntegral 0) 32
+int32 :: (Integral a) => a -> AST.Operand
+int32 = cons . Const.Int 32 . fromIntegral
 
-int32 :: (Integral a) => a ->  AST.Operand
-int32 n = cons $ Const.Int 32 (fromIntegral n) 
-
-emptyVal :: AST.Operand
-emptyVal = cons $ Const.Null double
+nullVal :: AST.Operand
+nullVal = cons $ Const.Null double
