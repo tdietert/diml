@@ -21,10 +21,7 @@ import qualified LLVM.General.AST as AST
 
 -- NOTE:
 --
--- 1) Remove main, main1, main2... etc, name generation in Repl
--- 2) compile to an executable when compiling a file.
--- 3) Organize debug functions
--- 4) SUM TYPES, CASE EXPRS! inl inr exprs
+-- 1) SUM TYPES, CASE EXPRS! inl inr exprs
 
 
 debugLlvmModule :: AST.Module -> String -> IO (Maybe AST.Module)
