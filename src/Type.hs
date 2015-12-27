@@ -23,7 +23,7 @@ data Type
     | TCon String
     | TArr Type Type
     | TProd Type Type
---  | TSum Type Type
+    | TSum Type Type
 --  | TRec TVar Type
     deriving (Eq, Ord, Show)
 

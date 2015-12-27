@@ -29,6 +29,8 @@ data DimlExpr
     | Let DimlExpr DimlExpr
     | Tuple DimlExpr DimlExpr Annot
     | Parens DimlExpr Annot
+    | InL DimlExpr Annot
+    | InR DimlExpr Annot
     | PrintInt DimlExpr
     | Builtins Builtins
    deriving (Eq, Ord, Show)

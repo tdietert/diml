@@ -24,9 +24,7 @@ contents p = whitespace *> p
 
 -- parses semicolon terminated expression
 topLevel :: Parser [DimlExpr]
-topLevel = many1 $ do
-   e <- expr <* reservedOp ";"
-   return e
+topLevel = many1 $ expr <* reservedOp ";"
 
 -- parses file
 parseFile :: String -> IO ()
@@ -129,10 +127,7 @@ letExpr = do
     decls <- commaSep $ funExpr <|> declExpr
     reserved "in"
     body <- expr
-    return $ transLet decls body
-    where transLet :: [DimlExpr] -> DimlExpr -> DimlExpr
-          transLet [] body = body
-          transLet (d:decls) body = Let d (transLet decls body)
+    return $ foldr Let body decls
 
 -- this parser parses a let declaration
 -- ex: (x = 5) from 'let (x = 5) in x'
@@ -164,29 +159,41 @@ intType = tInt <$ reserved "Int"
 
 prodType :: Parser Type
 prodType = do
+  --  let nonAgg = (try arrowType) <|> tTypeExpr
+    t1 <- tTypeExpr <* reservedOp ","
+    t2 <- tTypeExpr
+    return $ TProd t1 t2
+
+sumType :: Parser Type
+sumType = do
     char '(' >> whitespace
     t1 <- typeExpr
-    reservedOp ","
+    reservedOp "+"
     t2 <- typeExpr
     char ')' >> whitespace
-    return $ TProd t1 t2
+    return $ TSum t1 t2
 
 -- right associative type
 arrowType :: Parser Type
 arrowType = tTypeExpr `chainr1` arrow
     where arrow = TArr <$ reservedOp "->"
 
+aggType :: Parser Type
+aggType =  prodType
+       <|> sumType
+    --   <|> parens aggType
+
 -- base type exprs
 tTypeExpr :: Parser Type
 tTypeExpr =  boolType
-         <|> prodType
          <|> intType
          <|> unitType
 
 typeExpr :: Parser Type
-typeExpr =  try arrowType
+typeExpr = try arrowType
+        <|> aggType
         <|> tTypeExpr
-        <|> parens tTypeExpr
+        <|> parens typeExpr
 
 factor :: Parser DimlExpr
 factor =  declExpr
