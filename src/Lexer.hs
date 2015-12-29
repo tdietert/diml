@@ -7,23 +7,25 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import qualified Text.Parsec.Token as Token
 
 ops :: [String]
-ops = words "() -> + - * \\ = < <= > >= ; : ,"
+ops = words "-> + - * \\ = < <= > >= ;"
 
 keyWords :: [String]
-keyWords = words "fst snd true false fun if then else let in printInt inL inR Int Bool Unit"
+keyWords = words "fst snd true false fun if then else let in printInt inL inR Int Bool Unit ()"
 
 lexer :: Token.TokenParser ()
-lexer = Token.makeTokenParser style
-  where style = emptyDef {
-                  Token.identStart = letter
-                , Token.identLetter = alphaNum <|> char '_'
-                , Token.reservedNames = keyWords
-                , Token.reservedOpNames = ops
-                , Token.commentStart = "(*"
-                , Token.commentEnd = "*)"
-            }
+lexer = Token.makeTokenParser (emptyDef {
+	      Token.identStart = letter
+	    , Token.identLetter = alphaNum <|> char '_'
+	    , Token.reservedNames = keyWords
+	    , Token.reservedOpNames = ops
+	    , Token.commentStart = "(*"
+	    , Token.commentEnd = "*)"
+        })
 
 -- Tokens
+lexeme :: String -> Parser ()
+lexeme s = string s >> whitespace
+
 integer :: Parser Integer
 integer = Token.integer lexer           -- parses an integer
 
@@ -47,3 +49,4 @@ commaSep = Token.commaSep lexer         -- parses comma (needed for let exprs)
 
 semiSep :: Parser a -> Parser [a]
 semiSep = Token.semiSep lexer           -- semicolons (probably not needed)
+

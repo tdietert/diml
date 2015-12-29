@@ -2,7 +2,6 @@ module Parser where
 
 import Text.Parsec
 import Text.Parsec.String (Parser)
-import Text.Parsec.Language
 import qualified Text.Parsec.Expr as Expr
 
 import Control.Applicative hiding (many, (<|>))
@@ -71,13 +70,13 @@ opTable = [ [apply]
         ]
 
 annot :: Parser Type
-annot = reservedOp ":" *> typeExpr
+annot = char ':' *> whitespace *> typeExpr 
 
 expr :: Parser DimlExpr
 expr = Expr.buildExpressionParser opTable factor
 
 unitExpr :: Parser DimlExpr
-unitExpr = Lit DUnit <$ try (reservedOp "()")
+unitExpr = Lit DUnit <$ try (reserved "()")
 
 intExpr :: Parser DimlExpr
 intExpr = Lit . DInt <$> integer
@@ -93,10 +92,10 @@ funExpr :: Parser DimlExpr
 funExpr = do
     try $ reserved "fun"
     name <- identifier
-    char '(' >> whitespace
+    lexeme "(" 
     arg <- identifier
     argTyp <- optionMaybe annot
-    char ')' >> whitespace
+    lexeme ")"
     retTyp <- optionMaybe annot
     reservedOp "="
     body <- expr
@@ -116,8 +115,8 @@ ifExpr = If <$> try e1 <*> e2 <*> e3
 -- explicitly a pair: (x,y)
 tupleExpr :: Parser DimlExpr
 tupleExpr = do
-    e1 <- try $ reservedOp "(" *> expr <* reservedOp ","
-    e2 <- expr <* reservedOp ")"
+    e1 <- try $ lexeme "(" *> expr <* lexeme ","
+    e2 <- expr <* lexeme ")"
     ann <- optionMaybe annot
     return $ Tuple e1 e2 ann
 
@@ -159,18 +158,14 @@ intType = tInt <$ reserved "Int"
 
 prodType :: Parser Type
 prodType = do
-  --  let nonAgg = (try arrowType) <|> tTypeExpr
-    t1 <- tTypeExpr <* reservedOp ","
-    t2 <- tTypeExpr
+    t1 <- try $ nonAggType <* reservedOp "*"
+    t2 <- nonAggType 
     return $ TProd t1 t2
 
 sumType :: Parser Type
 sumType = do
-    char '(' >> whitespace
-    t1 <- typeExpr
-    reservedOp "+"
-    t2 <- typeExpr
-    char ')' >> whitespace
+    t1 <- try $ nonAggType <* reservedOp "+"
+    t2 <- nonAggType
     return $ TSum t1 t2
 
 -- right associative type
@@ -181,7 +176,10 @@ arrowType = tTypeExpr `chainr1` arrow
 aggType :: Parser Type
 aggType =  prodType
        <|> sumType
-    --   <|> parens aggType
+
+nonAggType :: Parser Type
+nonAggType =  try arrowType 
+          <|> tTypeExpr
 
 -- base type exprs
 tTypeExpr :: Parser Type
@@ -190,9 +188,8 @@ tTypeExpr =  boolType
          <|> unitType
 
 typeExpr :: Parser Type
-typeExpr = try arrowType
-        <|> aggType
-        <|> tTypeExpr
+typeExpr =  aggType
+        <|> nonAggType
         <|> parens typeExpr
 
 factor :: Parser DimlExpr
