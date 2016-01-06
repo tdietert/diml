@@ -65,10 +65,13 @@ data IExpr = IInt Integer
            | IIf IExpr IExpr IExpr
            | IApp Name [IExpr]
            | IDec Name IExpr
+           | IInL IExpr 
+           | IInR IExpr
+           | ICase IExpr [IExpr] [IExpr]
            | ILet IExpr IExpr
            | ITup IExpr IExpr
-           | IClosure Name Arg SymbolTable IExpr -- functions and lambdas
-           | ITopLevel IExpr IExpr     -- top level closures followed by first let expr
+           | IClosure Name Arg SymbolTable IExpr 
+           | ITopLevel IExpr IExpr  
            | IPrintInt IExpr
            | IBuiltin IBuiltin
            | IUnit
@@ -108,9 +111,8 @@ lambdaLift env expr = case expr of
                  DTrue -> return $ ITrue
                  DFalse -> return $ IFalse
                  DInt n -> return $ IInt n
-    Var x -> do
-        newName <- lookupVarName x
-        return $ IVar newName
+
+    Var x -> IVar <$> lookupVarName x
 
     Tuple e1 e2 _-> do
         e1' <- lambdaLift env e1
@@ -146,10 +148,24 @@ lambdaLift env expr = case expr of
                 }
                 return $ IDec newName e'
 
+    InR e _ -> IInR <$> lambdaLift env e
+
+    InL e _ -> IInL <$> lambdaLift env e
+
+    Case (Var x) [inl,inr] [e2,e3] -> do
+        st <- gets symtab
+        case (lookup x st) of
+            Just e1' -> do
+                [inl',inr',e2',e3'] <- mapM (lambdaLift env) [inl,inr,e2,e3]
+                return $ ICase e1' [inl',inr'] [e2',e3']
+            Nothing -> error $ "Can't find " ++ show (Var x) ++ " in symtab in IR.hs." 
+    Case e1 [inl,inr] [e2,e3] -> do
+        [e1',inl',inr',e2',e3'] <- mapM (lambdaLift env) [e1,inl,inr,e2,e3]
+        return $ ICase e1' [inl',inr'] [e2',e3']
+
     Let decl body -> do
         decl' <- lambdaLift env decl
         body' <- lambdaLift (return decl') body
-        sytb <- gets symtab
         case decl' of
             (IClosure name _ _ _) -> return $ ILet IUnit body'
             otherwise -> return $ ILet decl' body'

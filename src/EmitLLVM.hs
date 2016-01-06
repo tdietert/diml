@@ -54,7 +54,6 @@ stdlib = do
 
 codegenTop :: IR.IExpr -> LLVM ()
 codegenTop (IR.ITopLevel e1 e2) = codegenTop e1 >> codegenTop e2
-
 codegenTop (IR.IClosure name arg env body) = do
     define double name fnargs bls L.Internal
     where fnargs = (double, AST.Name arg) : toFunArg env -- arg is hard coded as double, might not be so
@@ -66,7 +65,6 @@ codegenTop (IR.IClosure name arg env body) = do
                   assign arg var
                   store var (local (AST.Name arg))
               cgen body >>= ret
-
 codegenTop (IR.ILet decl body) = do
     define double "main" [] bls L.External
     where bls = createBlocks . execCodegen $ do
@@ -116,11 +114,9 @@ cgen (IR.IVar x) = getvar x >>= load
 cgen (IR.ITup e1 e2) = do
     e1' <- cgen e1
     e2' <- cgen e2
-    tup <- alloca tuple
-    tup' <- load tup
-    tup1 <- insertElem e1' tup' 0
-    tup2 <- insertElem e2' tup1 1
-    return tup2
+    tup <- alloca tuple >>= (\t -> load t)
+    tup' <- insertElem e1' tup 0
+    insertElem e2' tup' 1
 cgen (IR.IPrintInt n) = do
     intArg <- cgen n
     argToIntType <- fptoui T.i64 intArg
@@ -176,15 +172,25 @@ cgen (IR.IDec name e) = do
             var <- alloca double
             assign name var
             store var asgn
-cgen (IR.ILet decl body) = do
-    cgen decl
-    cgen body
+cgen (IR.IInL e) = cgen e
+cgen (IR.IInR e) = cgen e
+cgen (IR.ICase (IR.IInL e1) [inl,_] [e2,_]) =
+    case inl of
+        (IR.IInL (IR.IVar x)) -> cgen (IR.IDec x e1) >> cgen e2
+        (IR.IInL e) -> if e1 == e then cgen e2 
+                       else error $ show e1 ++ " does not match " ++ show e ++ "."
+cgen (IR.ICase (IR.IInR e1) [_,inr] [_,e3]) =
+    case inr of
+        (IR.IInR (IR.IVar x)) -> cgen (IR.IDec x e1) >> cgen e3
+        (IR.IInR e) -> if e1 == e then cgen e3 
+                       else error $ show e1 ++ " does not match " ++ show e ++ "."  
+cgen (IR.ILet decl body) = cgen decl >> cgen body
 cgen (IR.IUnit) = return nullVal
 cgen (IR.IBuiltin e) =
     case e of
         ITupFst e' -> cgen $ IR.IApp "fst" [e']
         ITupSnd e' -> cgen $ IR.IApp "snd" [e']
-cgen e = error $ "Failed on lookup " ++ show e ++ " when constructing IR"
+cgen e = error $ "'cgen' function in Codegen.hs not defined for " ++ show e
 
 -------------------------------------------------------------------------------
 -- Compilation

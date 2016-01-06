@@ -33,16 +33,17 @@ printInt:
 	.align	8
 .LCPI3_0:
 	.quad	4607182418800017408
-.LCPI3_1:
-	.quad	4611686018427387904
 	.text
 	.globl	main
 	.align	16, 0x90
 	.type	main,@function
 main:
+	pushq	%rax
+	movl	$5, %edi
+	callq	printInt
 	vmovsd	.LCPI3_0(%rip), %xmm0
-	vmovsd	.LCPI3_1(%rip), %xmm1
-	jmp	fst
+	popq	%rax
+	ret
 .Ltmp3:
 	.size	main, .Ltmp3-main
 

@@ -184,8 +184,7 @@ infer expr =
             t2 <- infer e2
             let tupType = TProd t1 t2
             case ann of
-                Just ann' -> do
-                    addConstr ann' tupType
+                Just ann' -> addConstr ann' tupType
                 Nothing -> return ()
             return tupType
 
@@ -198,6 +197,38 @@ infer expr =
             return t2
 
         Decl x e -> infer e
+                    
+        InL e ann -> do
+            t <- infer e
+            tv <- fresh 
+            let tp = TProd t tv
+            case ann of
+                Just a -> addConstr a tp
+                Nothing -> return ()
+            return tp
+
+        InR e ann -> do
+            t <- infer e
+            tv <- fresh
+            let tp = TProd tv t
+            case ann of 
+                Just a -> addConstr a tp 
+                Nothing -> return ()
+            return tp
+
+        Case e1 [inl,inr] [e2,e3] -> do
+            -- tailored specifically for binary sum types 
+            -- | will later add varient types 
+            [t1,t2,t3] <- mapM infer [e1,e2,e3]
+            tL <- case inl of 
+                      (InL (Var x) _) -> fresh 
+                      otherwise -> infer inl
+            tR <- case inr of 
+                      (InR (Var s) _) -> fresh
+                      otherwise -> infer inr
+            addConstr t1 (TProd tL tR)
+            addConstr t2 t3
+            return t2
 
         Apply e1 e2 -> do
             t1 <- infer e1
@@ -209,11 +240,9 @@ infer expr =
         Lam arg ann e -> do
             tvArg <- fresh
             tvRet <- fresh
-
             case ann of
                 Just ann' -> addConstr tvArg ann'
                 Nothing -> return ()
-
             -- adds argument to context with type tvArg to infer type of e
             t1 <- extendEnv [(arg, Forall [] tvArg)] (infer e)
             addConstr tvRet t1
@@ -242,7 +271,7 @@ infer expr =
             bodyType <- extendEnv [(fname, scheme)] $ infer body
             return bodyType
 
-        PrintInt e1    -> do
+        PrintInt e1 -> do
             t1 <- infer e1
             addConstr t1 tInt
             return tInt
@@ -288,6 +317,7 @@ composeSubs (Subst s1) (Subst s2) = Subst $ (Map.map (apply $ Subst s1) s2) `Map
 unify :: Type -> Type -> Solver Unifier
 unify (TVar v) t = bindTVar v t
 unify t (TVar v) = bindTVar v t
+unify (TProd t1 t2) (TProd t1' t2') = return $ (emptySubst, [(t1,t1'),(t2,t2')])
 unify (TArr t1 t2) (TArr t1' t2') = return $ (emptySubst, [(t1,t1'),(t2,t2')])
 unify t1 t2
     | t1 == t2 = return (emptySubst, [])

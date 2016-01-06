@@ -120,10 +120,29 @@ tupleExpr = do
     ann <- optionMaybe annot
     return $ Tuple e1 e2 ann
 
+inRExpr :: Parser DimlExpr
+inRExpr = InR <$> (try $ reserved "inR" *> expr) 
+              <*> optionMaybe annot
+
+inLExpr :: Parser DimlExpr
+inLExpr = InL <$> (try $ reserved "inL" *> expr)
+              <*> optionMaybe annot 
+
+caseExpr :: Parser DimlExpr
+caseExpr = do
+    try (reserved "case")
+    e1 <- expr
+    reserved "of"
+    inl <- (parens inLExpr <|> inLExpr) <* lexeme "=>"
+    e2 <- expr
+    lexeme "|" 
+    inr <- (parens inRExpr <|> inRExpr) <* lexeme "=>"
+    e3 <- expr
+    return $ Case e1 [inl,inr] [e2,e3]    
+
 letExpr :: Parser DimlExpr
 letExpr = do
-    try $ reserved "let"
-    decls <- commaSep $ funExpr <|> declExpr
+    decls <- try $ reserved "let" *> commaSep (funExpr <|> declExpr)
     reserved "in"
     body <- expr
     return $ foldr Let body decls
@@ -197,6 +216,9 @@ factor =  declExpr
       <|> funExpr
       <|> lamExpr
       <|> boolExpr
+      <|> inRExpr
+      <|> inLExpr
+      <|> caseExpr
       <|> ifExpr
       <|> letExpr
       <|> intExpr

@@ -22,20 +22,21 @@ data DimlExpr
     | Var Name
     | BinOp Name DimlExpr DimlExpr
     | Lam Name Annot DimlExpr
-    | Fun Name Name Annot Annot DimlExpr       -- (name : T1) : T2 body-- Diml Expression Definition
+    | Fun Name Name Annot Annot DimlExpr     
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
-    | Decl Name DimlExpr             -- helper expr for multi declaration letexprs
+    | Decl Name DimlExpr             
     | Let DimlExpr DimlExpr
     | Tuple DimlExpr DimlExpr Annot
     | Parens DimlExpr Annot
     | InL DimlExpr Annot
     | InR DimlExpr Annot
+    | Case DimlExpr [DimlExpr] [DimlExpr]
     | PrintInt DimlExpr
     | Builtins Builtins
    deriving (Eq, Ord, Show)
 
---Diml Patterns for pattern matching
+--Diml Patterns rn matching
 --data Pattern
 --    = IntPat Int
 --    | TruePat

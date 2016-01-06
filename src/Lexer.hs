@@ -10,16 +10,16 @@ ops :: [String]
 ops = words "-> + - * \\ = < <= > >= ;"
 
 keyWords :: [String]
-keyWords = words "fst snd true false fun if then else let in printInt inL inR Int Bool Unit ()"
+keyWords = words "fst snd true false fun if then else let in printInt inL inR case of Int Bool Unit ()"
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser (emptyDef {
-	      Token.identStart = letter
-	    , Token.identLetter = alphaNum <|> char '_'
-	    , Token.reservedNames = keyWords
-	    , Token.reservedOpNames = ops
-	    , Token.commentStart = "(*"
-	    , Token.commentEnd = "*)"
+             Token.identStart = letter
+            , Token.identLetter = alphaNum <|> char '_'
+            , Token.reservedNames = keyWords
+            , Token.reservedOpNames = ops
+            , Token.commentStart = "(*"
+            , Token.commentEnd = "*)"
         })
 
 -- Tokens
