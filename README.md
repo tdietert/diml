@@ -70,6 +70,9 @@ data DimlExpr
     | Decl Name DimlExpr             -- helper expr for multi declaration letexprs
     | Let DimlExpr DimlExpr
     | Tuple DimlExpr DimlExpr Annot
+    | InL DimlExpr Annot
+    | InR DimlExpr Annot
+    | Case DimlExpr [DimlExpr] [DimlExpr]
     | Parens DimlExpr Annot
     | PrintInt DimlExpr
     | Builtins Builtins
@@ -92,7 +95,7 @@ Type inference is fully implemented. Will do some minor tweaks to first IR and t
 
 
 **New Exprs (after base llvm codegen is added):**
-- Sum Types (InL / InR exprs, case expressions)
+- ~~Sum Types (InL / InR exprs, case expressions)~~
 - Recursive Types, Lists
 - References (Arrays too?)
 - Objects (sub-typing)
