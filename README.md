@@ -17,7 +17,7 @@ The project is in a semi-final state, where I have completed my thesis, but have
 > diML> *enter code here*
 
 #####File Compilation:
-> $ stack exec dimlCompiler <nameOfFile>
+> $ stack exec dimlCompiler \<nameOfFile\>
 
 > $ gcc \<nameOfFile\>.s -o \<outfile\>
 
