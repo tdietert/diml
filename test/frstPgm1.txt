@@ -1,0 +1,4 @@
+let x = 5,
+    y = 6,
+    fun add1(x) = x + 1
+in printInt(add1 x * add1 y)

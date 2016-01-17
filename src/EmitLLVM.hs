@@ -22,6 +22,7 @@ import Data.Word
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Traversable
 import Control.Monad.Except
 import Control.Applicative
 import Control.Monad.State
@@ -53,7 +54,6 @@ stdlib = do
     define double "snd" [(tuple, AST.Name "tuple")] [] L.External
 
 codegenTop :: IR.IExpr -> LLVM ()
-codegenTop (IR.ITopLevel e1 e2) = codegenTop e1 >> codegenTop e2
 codegenTop (IR.IClosure name arg env body) = do
     define double name fnargs bls L.Internal
     where fnargs = (double, AST.Name arg) : toFunArg env -- arg is hard coded as double, might not be so
@@ -70,10 +70,9 @@ codegenTop (IR.ILet decl body) = do
     where bls = createBlocks . execCodegen $ do
               entry <- addBlock entryBlockName
               setBlock entry
-              case decl of
-                  IR.IUnit -> return nullVal
-                  _     -> cgen decl
+              cgen decl
               cgen body >>= ret
+codegenTop expr = codegenTop $ IR.ILet (ILit IUnit) expr
 
 -------------------------------------------------------------------------------
 -- Operations
@@ -107,9 +106,12 @@ binops = Map.fromList [
 
 -- code gen for code within blocks, creates sequence of instructions
 cgen :: IR.IExpr -> Codegen AST.Operand
-cgen (IR.ITrue) = return true
-cgen (IR.IFalse) = return false
-cgen (IR.IInt n) = return $ int n
+cgen (IR.ILit a) =
+    return $ case a of
+         IR.IUnit -> nullVal
+         IR.ITrue -> true
+         IR.IFalse -> false
+         IR.IInt n -> int n
 cgen (IR.IVar x) = getvar x >>= load
 cgen (IR.ITup e1 e2) = do
     e1' <- cgen e1
@@ -176,16 +178,15 @@ cgen (IR.IInL e) = cgen e
 cgen (IR.IInR e) = cgen e
 cgen (IR.ICase (IR.IInL e1) [inl,_] [e2,_]) =
     case inl of
-        (IR.IInL (IR.IVar x)) -> cgen (IR.IDec x e1) >> cgen e2
-        (IR.IInL e) -> if e1 == e then cgen e2 
+        (IR.IInL (IR.IVar x)) -> cgen e2
+        (IR.IInL e) -> if e1 == e then cgen e2
                        else error $ show e1 ++ " does not match " ++ show e ++ "."
 cgen (IR.ICase (IR.IInR e1) [_,inr] [_,e3]) =
     case inr of
-        (IR.IInR (IR.IVar x)) -> cgen (IR.IDec x e1) >> cgen e3
-        (IR.IInR e) -> if e1 == e then cgen e3 
-                       else error $ show e1 ++ " does not match " ++ show e ++ "."  
+        (IR.IInR (IR.IVar x)) -> cgen e3
+        (IR.IInR e) -> if e1 == e then cgen e3
+                       else error $ show e1 ++ " does not match " ++ show e ++ "."
 cgen (IR.ILet decl body) = cgen decl >> cgen body
-cgen (IR.IUnit) = return nullVal
 cgen (IR.IBuiltin e) =
     case e of
         ITupFst e' -> cgen $ IR.IApp "fst" [e']
@@ -199,10 +200,11 @@ cgen e = error $ "'cgen' function in Codegen.hs not defined for " ++ show e
 liftError :: ExceptT String IO a -> IO a
 liftError = runExceptT >=> either fail return
 
-codegen :: AST.Module -> IR.IExpr -> IO AST.Module
-codegen mod fn = withContext $ \context ->
+codegen :: AST.Module -> [IR.IExpr] -> IO AST.Module
+codegen mod [] = return $ emptyModule "empty"
+codegen mod fns = withContext $ \context ->
    liftError $ withModuleFromAST context newast $ \m -> return newast
-   where modn = codegenTop fn
+   where modn = foldl1 (>>) $ map codegenTop fns
          newast = runLLVM mod modn
 
 builtins :: IO File

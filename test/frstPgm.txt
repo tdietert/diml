@@ -1,0 +1,6 @@
+let list = (inL (3, inL (2, inL (1, inR ()))))
+  , fun sumList(l) = 
+        case l of
+          inL x => fst x + sumList (snd x)
+        | inR x => 0
+in 5

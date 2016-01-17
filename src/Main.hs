@@ -32,7 +32,7 @@ debugLlvmModule base source = do
             case inferExpr empty dimlExpr of
                 Left err -> print err >> return Nothing
                 Right typeScheme -> do
-                    let irExpr = buildIRTree dimlExpr
+                    let irExpr = buildFinalPrgm dimlExpr
                     putStrLn "\nDimlExpr AST:\n"
                     putStrLn $ "    " ++ show dimlExpr
                     putStrLn "\nDimlIR AST:\n"
@@ -53,7 +53,7 @@ debugProcessFile fname = do
                     putStrLn $ "Constraints: " ++ show cs
                     putStrLn $ "Substitution: " ++ show sub
                     putStrLn $ "Type Scheme: " ++ show typSch
-                    let irExpr = buildIRTree dimlExpr
+                    let irExpr = buildFinalPrgm dimlExpr
                     putStrLn "\nDimlExpr AST:\n"
                     print dimlExpr
                     putStrLn "\nDimlIR AST:\n"
@@ -61,7 +61,7 @@ debugProcessFile fname = do
                     putStr "\n"
                     mod <- linkBuiltins initModule
                     -- CURRENTLY THIS COMPILES AND RUNS THE FILE (CHANGE)
-                    codegen mod (buildIRTree dimlExpr)
+                    codegen mod (buildFinalPrgm dimlExpr)
                     return ()
 
 
@@ -79,7 +79,7 @@ processfile fname = do
                 Left err -> print err
                 Right scheme -> do
                    mod <- linkBuiltins initModule
-                   mod' <- codegen mod (buildIRTree dimlExpr)
+                   mod' <- codegen mod (buildFinalPrgm dimlExpr)
                    compileFile mod' fname
 
 processRepl :: AST.Module -> String -> IO (Maybe AST.Module)
@@ -91,7 +91,7 @@ processRepl oldMod expr =
                 Left err -> print err >> return Nothing
                 Right scheme -> do
                    putStrLn $ show dimlExpr ++ " :: " ++ show scheme
-                   let irExpr = buildIRTree dimlExpr
+                   let irExpr = buildFinalPrgm dimlExpr
                    newMod <- codegen oldMod irExpr
                    result <- runJIT newMod
                    case result of

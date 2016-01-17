@@ -70,7 +70,7 @@ opTable = [ [apply]
         ]
 
 annot :: Parser Type
-annot = char ':' *> whitespace *> typeExpr 
+annot = char ':' *> whitespace *> typeExpr
 
 expr :: Parser DimlExpr
 expr = Expr.buildExpressionParser opTable factor
@@ -92,7 +92,7 @@ funExpr :: Parser DimlExpr
 funExpr = do
     try $ reserved "fun"
     name <- identifier
-    lexeme "(" 
+    lexeme "("
     arg <- identifier
     argTyp <- optionMaybe annot
     lexeme ")"
@@ -121,12 +121,12 @@ tupleExpr = do
     return $ Tuple e1 e2 ann
 
 inRExpr :: Parser DimlExpr
-inRExpr = InR <$> (try $ reserved "inR" *> expr) 
+inRExpr = InR <$> (try $ reserved "inR" *> expr)
               <*> optionMaybe annot
 
 inLExpr :: Parser DimlExpr
 inLExpr = InL <$> (try $ reserved "inL" *> expr)
-              <*> optionMaybe annot 
+              <*> optionMaybe annot
 
 caseExpr :: Parser DimlExpr
 caseExpr = do
@@ -135,10 +135,10 @@ caseExpr = do
     reserved "of"
     inl <- (parens inLExpr <|> inLExpr) <* lexeme "=>"
     e2 <- expr
-    lexeme "|" 
+    lexeme "|"
     inr <- (parens inRExpr <|> inRExpr) <* lexeme "=>"
     e3 <- expr
-    return $ Case e1 [inl,inr] [e2,e3]    
+    return $ Case e1 [inl,inr] [e2,e3]
 
 letExpr :: Parser DimlExpr
 letExpr = do
@@ -178,7 +178,7 @@ intType = tInt <$ reserved "Int"
 prodType :: Parser Type
 prodType = do
     t1 <- try $ nonAggType <* reservedOp "*"
-    t2 <- nonAggType 
+    t2 <- nonAggType
     return $ TProd t1 t2
 
 sumType :: Parser Type
@@ -197,7 +197,7 @@ aggType =  prodType
        <|> sumType
 
 nonAggType :: Parser Type
-nonAggType =  try arrowType 
+nonAggType =  try arrowType
           <|> tTypeExpr
 
 -- base type exprs

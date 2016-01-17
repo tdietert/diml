@@ -197,10 +197,10 @@ infer expr =
             return t2
 
         Decl x e -> infer e
-                    
+
         InL e ann -> do
             t <- infer e
-            tv <- fresh 
+            tv <- fresh
             let tp = TProd t tv
             case ann of
                 Just a -> addConstr a tp
@@ -211,19 +211,19 @@ infer expr =
             t <- infer e
             tv <- fresh
             let tp = TProd tv t
-            case ann of 
-                Just a -> addConstr a tp 
+            case ann of
+                Just a -> addConstr a tp
                 Nothing -> return ()
             return tp
 
         Case e1 [inl,inr] [e2,e3] -> do
-            -- tailored specifically for binary sum types 
-            -- | will later add varient types 
+            -- tailored specifically for binary sum types
+            -- | will later add varient types
             [t1,t2,t3] <- mapM infer [e1,e2,e3]
-            tL <- case inl of 
-                      (InL (Var x) _) -> fresh 
+            tL <- case inl of
+                      (InL (Var x) _) -> fresh
                       otherwise -> infer inl
-            tR <- case inr of 
+            tR <- case inr of
                       (InR (Var s) _) -> fresh
                       otherwise -> infer inr
             addConstr t1 (TProd tL tR)
@@ -258,6 +258,8 @@ infer expr =
                 argSch = Forall [] tvArg
             bodyType <- extendEnv [(fname,funSch),(arg,argSch)] (infer body)
             addConstr bodyType tvRet
+            maybe (return ()) (addConstr tvArg) argAnn
+            maybe (return ()) (addConstr tvRet) retAnn
             return $ TArr tvArg bodyType
 
         Let (Decl x e1) body -> do

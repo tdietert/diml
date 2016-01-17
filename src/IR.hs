@@ -55,9 +55,13 @@ data IBuiltin = ITupFst IExpr
               | ITupSnd IExpr
               deriving (Eq, Show)
 
-data IExpr = IInt Integer
-           | ITrue
-           | IFalse
+data ILit = IUnit
+          | ITrue
+          | IFalse
+          | IInt Integer
+          deriving (Eq,Show)
+
+data IExpr = ILit ILit
            | ITupl (IExpr,IExpr)
            | IVar Name
            | IBinOp Name IExpr IExpr
@@ -65,16 +69,14 @@ data IExpr = IInt Integer
            | IIf IExpr IExpr IExpr
            | IApp Name [IExpr]
            | IDec Name IExpr
-           | IInL IExpr 
+           | IInL IExpr
            | IInR IExpr
            | ICase IExpr [IExpr] [IExpr]
            | ILet IExpr IExpr
            | ITup IExpr IExpr
-           | IClosure Name Arg SymbolTable IExpr 
-           | ITopLevel IExpr IExpr  
+           | IClosure Name Arg SymbolTable IExpr
            | IPrintInt IExpr
            | IBuiltin IBuiltin
-           | IUnit
            deriving (Eq,Show)
 
 ------------------------------------------
@@ -83,8 +85,8 @@ data IExpr = IInt Integer
 emptyLLTree :: EnvState
 emptyLLTree = EnvState [] Map.empty []
 
-runLLTree :: Env IExpr -> (IExpr, EnvState)
-runLLTree m =  runState (runEnv m) emptyLLTree
+runLamLift :: Env IExpr -> (IExpr, EnvState)
+runLamLift m =  runState (runEnv m) emptyLLTree
 
 getClosures :: EnvState -> [IExpr]
 getClosures es = foldl collectClosures [] env
@@ -92,13 +94,9 @@ getClosures es = foldl collectClosures [] env
           collectClosures clsrs (name,f@(IClosure _ _ _ _)) = f:clsrs
           collectClosures clsrs _ = clsrs
 
-buildIRTree :: DimlExpr -> IExpr
-buildIRTree dimlExpr =
-    case getClosures closures of
-        -- add toplevel let env to end of function(closure) declarations
-        (c:cs) -> foldl ITopLevel c $ cs++[prgm]
-        []     -> prgm
-    where (prgm, closures) = runLLTree $ lambdaLift (return IUnit) dimlExpr
+buildFinalPrgm :: DimlExpr -> [IExpr]
+buildFinalPrgm dimlExpr = getClosures closures ++ [prgm]
+    where (prgm, closures) = runLamLift $ lambdaLift (return $ ILit IUnit) dimlExpr
 
 -------------------------------------------
 
@@ -106,11 +104,11 @@ buildIRTree dimlExpr =
 -- type inference is run before lambda lifting
 lambdaLift :: Env IExpr -> DimlExpr -> Env IExpr
 lambdaLift env expr = case expr of
-    Lit x -> case x of
-                 DUnit -> return IUnit
-                 DTrue -> return $ ITrue
-                 DFalse -> return $ IFalse
-                 DInt n -> return $ IInt n
+    Lit x -> return $ case x of
+                   DUnit -> ILit IUnit
+                   DTrue -> ILit ITrue
+                   DFalse -> ILit IFalse
+                   DInt n -> ILit $ IInt n
 
     Var x -> IVar <$> lookupVarName x
 
@@ -158,7 +156,7 @@ lambdaLift env expr = case expr of
             Just e1' -> do
                 [inl',inr',e2',e3'] <- mapM (lambdaLift env) [inl,inr,e2,e3]
                 return $ ICase e1' [inl',inr'] [e2',e3']
-            Nothing -> error $ "Can't find " ++ show (Var x) ++ " in symtab in IR.hs." 
+            Nothing -> error $ "Can't find " ++ show (Var x) ++ " in symtab in IR.hs."
     Case e1 [inl,inr] [e2,e3] -> do
         [e1',inl',inr',e2',e3'] <- mapM (lambdaLift env) [e1,inl,inr,e2,e3]
         return $ ICase e1' [inl',inr'] [e2',e3']
@@ -167,7 +165,7 @@ lambdaLift env expr = case expr of
         decl' <- lambdaLift env decl
         body' <- lambdaLift (return decl') body
         case decl' of
-            (IClosure name _ _ _) -> return $ ILet IUnit body'
+            (IClosure name _ _ _) -> return $ body'
             otherwise -> return $ ILet decl' body'
 
     Lam arg _ body -> do
@@ -181,13 +179,14 @@ lambdaLift env expr = case expr of
         }
         return lClos
 
+    -- **could be accomplished with let(rec) exprs
     Fun fName arg _ _ body -> do
         (EnvState ctxt nms nmMap) <- get
         newArgName <- uniqueName arg
         newFName <- uniqueName fName
         -- all closures are top level, don't need to keep in env
         let fCtxt = filter cleanClosures ctxt
-            tmpClos = IClosure newFName newArgName fCtxt IUnit
+            tmpClos = IClosure newFName newArgName fCtxt (ILit IUnit)
         -- add func and arg to nameMap for lexical scoping
         modify $ \s -> s {
             symtab = (newFName, tmpClos) : ctxt
