@@ -1,4 +1,0 @@
-let z = inL 1
-in case z of 
-       (inL x) => printInt(5)
-     | (inR x) => printInt(7)
