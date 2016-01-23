@@ -85,8 +85,8 @@ varExpr :: Parser DimlExpr
 varExpr = Var <$> identifier
 
 boolExpr :: Parser DimlExpr
-boolExpr =  Lit DTrue <$ reserved "true"
-        <|> Lit DFalse <$ reserved "false"
+boolExpr =  Lit DTrue <$ try $ reserved "true"
+        <|> Lit DFalse <$ try $ reserved "false"
 
 funExpr :: Parser DimlExpr
 funExpr = do
@@ -133,10 +133,10 @@ caseExpr = do
     try (reserved "case")
     e1 <- expr
     reserved "of"
-    inl <- (parens inLExpr <|> inLExpr) <* lexeme "=>"
+    inl <- (parens inLPat <|> inLPat) <* lexeme "=>"
     e2 <- expr
     lexeme "|"
-    inr <- (parens inRExpr <|> inRExpr) <* lexeme "=>"
+    inr <- (parens inRPat <|> inRPat) <* lexeme "=>"
     e3 <- expr
     return $ Case e1 [inl,inr] [e2,e3]
 
@@ -162,6 +162,38 @@ prIntExpr = do
 
 parensExpr :: Parser DimlExpr
 parensExpr = Parens <$> parens expr <*> optionMaybe annot
+
+-- Patterns:
+------------
+intPat :: Parser Pattern
+intPat = IntPat <$> integer
+
+truePat :: Parser Pattern
+truePat = TruePat <$> try $ reserved "true"
+
+falsePat :: Parser Pattern
+falsePat = FalsePat <$> try $ reserved "false"
+
+wcPat :: Parser Pattern
+wcPat = WildCardPat <$> reserved "_"
+
+varPat :: Parser Pattern
+varPat = VarPat <$> identifier
+
+inlPat :: Parser Pattern
+inlPat = InLPat <$> try $ reserved "inL" *> pattern
+
+inrPat :: Parser Pattern
+inrPat = InRPat <$> try $ reserved "inR" *> pattern
+
+pattern :: Parser Pattern
+pattern =  inlPat
+       <|> inrPat
+       <|> truePat
+       <|> falsePat
+       <|> wcPat
+       <|> varPat
+       <|> parens pattern
 
 -- Types:
 -- int | bool | arrow type type | prod type type

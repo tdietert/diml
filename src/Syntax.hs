@@ -22,24 +22,27 @@ data DimlExpr
     | Var Name
     | BinOp Name DimlExpr DimlExpr
     | Lam Name Annot DimlExpr
-    | Fun Name Name Annot Annot DimlExpr     
+    | Fun Name Name Annot Annot DimlExpr
     | If DimlExpr DimlExpr DimlExpr
     | Apply DimlExpr DimlExpr
-    | Decl Name DimlExpr             
+    | Decl Name DimlExpr
     | Let DimlExpr DimlExpr
     | Tuple DimlExpr DimlExpr Annot
     | Parens DimlExpr Annot
     | InL DimlExpr Annot
     | InR DimlExpr Annot
-    | Case DimlExpr [DimlExpr] [DimlExpr]
+    | Case DimlExpr [Pattern] [DimlExpr]
     | PrintInt DimlExpr
     | Builtins Builtins
    deriving (Eq, Ord, Show)
 
---Diml Patterns rn matching
---data Pattern
---    = IntPat Int
---    | TruePat
---    | FalsePat
---    | WildCardPat
---    | VarPat String
+-- Diml Patterns rn matching
+data Pattern
+    = IntPat Int
+    | TruePat
+    | FalsePat
+    | WildCardPat
+    | VarPat String
+    | InLPat Pattern
+    | InRPat Pattern
+   deriving (Eq, Ord, Show)
