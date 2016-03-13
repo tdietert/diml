@@ -37,9 +37,13 @@ data DimlExpr
    deriving (Eq, Ord, Show)
 
 --Diml Patterns rn matching
---data Pattern
---    = IntPat Int
---    | TruePat
---    | FalsePat
---    | WildCardPat
---    | VarPat String
+data Pattern
+    = IntPat Int
+    | TruePat
+    | FalsePat
+    | UnitPat
+    | WildCardPat
+    | VarPat String
+    | InLPat Pattern
+    | InRPat Pattern
+    | TupPat Pattern Pattern
