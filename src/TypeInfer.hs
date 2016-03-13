@@ -218,14 +218,10 @@ infer expr =
 
         Case e1 [inl,inr] [e2,e3] -> do
             -- tailored specifically for binary sum types
-            -- | will later add varient types
+            -- | will later add variant types
             [t1,t2,t3] <- mapM infer [e1,e2,e3]
-            tL <- case inl of
-                      (InL (Var x) _) -> fresh
-                      otherwise -> infer inl
-            tR <- case inr of
-                      (InR (Var s) _) -> fresh
-                      otherwise -> infer inr
+            tL <- fresh
+            tR <- fresh
             addConstr t1 (TProd tL tR)
             addConstr t2 t3
             return t2

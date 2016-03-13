@@ -71,7 +71,7 @@ data IExpr = ILit ILit
            | IDec Name IExpr
            | IInL IExpr
            | IInR IExpr
-           | ICase IExpr [IExpr] [IExpr]
+           | ICase IExpr [Pattern] [IExpr]
            | ILet IExpr IExpr
            | ITup IExpr IExpr
            | IClosure Name Arg SymbolTable IExpr
@@ -150,16 +150,9 @@ lambdaLift env expr = case expr of
 
     InL e _ -> IInL <$> lambdaLift env e
 
-    Case (Var x) [inl,inr] [e2,e3] -> do
-        st <- gets symtab
-        case (lookup x st) of
-            Just e1' -> do
-                [inl',inr',e2',e3'] <- mapM (lambdaLift env) [inl,inr,e2,e3]
-                return $ ICase e1' [inl',inr'] [e2',e3']
-            Nothing -> error $ "Can't find " ++ show (Var x) ++ " in symtab in IR.hs."
     Case e1 [inl,inr] [e2,e3] -> do
-        [e1',inl',inr',e2',e3'] <- mapM (lambdaLift env) [e1,inl,inr,e2,e3]
-        return $ ICase e1' [inl',inr'] [e2',e3']
+        [e1',e2',e3'] <- mapM (lambdaLift env) [e1,e2,e3]
+        return $ ICase e1' [inl,inr] [e2',e3']
 
     Let decl body -> do
         decl' <- lambdaLift env decl
