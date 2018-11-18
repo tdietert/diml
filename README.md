@@ -99,7 +99,7 @@ Type inference is fully implemented. Will do some minor tweaks to first IR and t
 - References (Arrays too?)
 - Objects (sub-typing)
 
-####Example Repl Usage:
+## Example Repl Usage:
 ---
 
 **diML> fun add1(x:Int):Int = x + 1**
