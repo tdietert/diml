@@ -1,10 +1,9 @@
-## diML Compiler (diminished ML)
+# diML Compiler (diminished ML)
 
-##### Compiler in progress for my Honor's Thesis, Summer/Fall 2015
+## Compiler in progress for my Honor's Thesis, Summer/Fall 2015
 The project is in a semi-final state, where I have completed my thesis, but have much more to add/experiment with. The thesis covering the implementation of this Compiler is found in the file 'diML_Thesis.pdf.' This compiler uses Parsec for lexing, parsing, and AST generation. The two modules Typecheck.hs and TypeInfer.hs handle the typechecking (though TypeInfer.hs subsumes Typecheck.hs). Code generation targets LLVM IR using the llvm-general and llvm-general-pure libraries (Haskell bindings to call C++ LLVM functions) with the help of Stephen Diehl's tutorial <http://dev.stephendiehl.com/fun/WYAH.pdf>. 
 
-
-#####Build Instructions:
+## Build Instructions:
 
 > $ git clone https://github.com/tdietert/dimlCompiler.git
 
@@ -16,7 +15,7 @@ The project is in a semi-final state, where I have completed my thesis, but have
 
 > diML> *enter code here*
 
-#####File Compilation:
+## File Compilation:
 > $ stack exec dimlCompiler \<nameOfFile\>
 
 > $ gcc \<nameOfFile\>.s -o \<outfile\>
@@ -79,7 +78,7 @@ data DimlExpr
    deriving (Eq, Ord, Show)
 ```
 
-#####Note:
+## Note:
 
 Type inference is fully implemented. Will do some minor tweaks to first IR and then attempt to implement pattern matching specifically to destruct tuples (perhaps I need to add case exprs to demonstrate the pattern matching. I want to add the list data type as well, and have some built in functions like map and filter. 
 
@@ -136,7 +135,7 @@ entry:
 }
 ```
 
-####Example of valid program and compilation:
+## Example of valid program and compilation:
 ---
 
 **Usage:**
